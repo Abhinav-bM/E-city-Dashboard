@@ -465,6 +465,7 @@ const AddProductForm = () => {
           )}
         </Form.List>
 
+        
         <Form.Item
           label="Description"
           name="description"
