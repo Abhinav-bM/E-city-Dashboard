@@ -1,0 +1,41 @@
+.ant-layout {
+  @apply bg-white min-h-screen;
+
+  // Sider
+  .ant-layout-sider {
+    @apply bg-white border-r min-h-screen;
+
+    ul {
+      @apply bg-white hover:text-black !border-0;
+
+      .ant-menu-item-selected {
+        @apply bg-gray-100;
+      }
+      .ant-menu-item-active {
+        @apply text-themeColor !important;
+      }
+
+      .ant-menu-item {
+        @apply text-textPrimary;
+      }
+
+      .ant-menu {
+        @apply bg-white !important;
+      }
+    }
+
+    .logo {
+      @apply flex justify-center items-center w-full h-16 font-bold;
+    }
+  }
+
+  // Header
+  .ant-layout-header {
+    @apply bg-white border-b;
+  }
+
+  // Content
+  .ant-layout-content {
+    @apply bg-gray-50 m-0 p-5 !important;
+  }
+}

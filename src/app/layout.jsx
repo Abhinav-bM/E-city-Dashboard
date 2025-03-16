@@ -1,5 +1,6 @@
 import "@/assets/styles/styles.scss";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
+import Mainwrapper from "@/wrapper/main";
 
 export const metadata = {
   title: "Create Next App",
@@ -10,7 +11,9 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        <AntdRegistry>{children}</AntdRegistry>
+        <AntdRegistry>
+          <Mainwrapper>{children}</Mainwrapper>
+        </AntdRegistry>
       </body>
     </html>
   );
