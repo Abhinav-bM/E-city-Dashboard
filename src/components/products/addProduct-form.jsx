@@ -11,6 +11,7 @@ import {
   Select,
   InputNumber,
   message,
+  Collapse,
 } from "antd";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -267,7 +268,7 @@ const AddProductForm = () => {
                       { required: true, message: "Attribute name required" },
                     ]}
                   >
-                    <Input placeholder="Attribute (e.g., Color , Ram , Rom)" />
+                    <Input width={100} placeholder="Attribute (e.g., Color , Ram , Rom)" />
                   </Form.Item>
                   <Form.Item
                     {...restField}
@@ -304,154 +305,155 @@ const AddProductForm = () => {
         <Form.List name="variants">
           {(fields, { add, remove }) => (
             <>
-              {fields.map(({ key, name: variantIndex, ...restField }) => (
-                <div
-                  key={key}
-                  style={{
-                    marginBottom: 16,
-                    border: "1px solid #ccc",
-                    padding: 16,
-                    borderRadius: 8,
-                  }}
-                >
-                  <h3>Variant {variantIndex + 1}</h3>
-                  <Form.Item
-                    {...restField}
-                    name={[variantIndex, "sku"]}
-                    label="SKU"
-                    rules={[{ required: true, message: "SKU is required" }]}
-                  >
-                    <Input placeholder="Unique SKU" />
-                  </Form.Item>
-                  <Form.Item
-                    {...restField}
-                    name={[variantIndex, "price"]}
-                    label="Price"
-                    rules={[{ required: true, message: "Price is required" }]}
-                  >
-                    <InputNumber
-                      min={0}
-                      style={{ width: "100%" }}
-                      placeholder="Variant Price"
-                    />
-                  </Form.Item>
-                  <Form.Item
-                    {...restField}
-                    name={[variantIndex, "stock"]}
-                    label="Stock"
-                    rules={[{ required: true, message: "Stock is required" }]}
-                  >
-                    <InputNumber
-                      min={0}
-                      style={{ width: "100%" }}
-                      placeholder="Available Stock"
-                    />
-                  </Form.Item>
-
-                  {/* Variant Images */}
-                  {/* <Form.Item
-                    {...restField}
-                    name={[variantIndex, "images"]}
-                    label="Variant Images"
-                    rules={[
-                      {
-                        required: true,
-                        message: "At least one image is required",
-                      },
-                    ]}
-                  >
-                    <Upload
-                      listType="picture-card"
-                      customRequest={({ file, onSuccess, onError }) => {
-                        const uploadedFile = file;
-                        handleVariantImageUpload(uploadedFile, variantIndex)
-                          .then(() => onSuccess?.({}, uploadedFile))
-                          .catch((err) => onError?.(err));
+              <Collapse
+                items={fields.map(({ key, name: variantIndex, ...restField }) => ({
+                  key: key,
+                  label: `Variant ${variantIndex + 1}`,
+                  children: (
+                    <div
+                      style={{
+                        padding: 8,
                       }}
-                      fileList={(
-                        form.getFieldValue([
-                          "variants",
-                          variantIndex,
-                          "images",
-                        ]) || []
-                      ).map((img, idx) => {
-                        const imageUrl =
-                          typeof img === "string" ? img : img.url;
-                        return {
-                          uid: `-${idx}`,
-                          name: `variant-image-${idx}`,
-                          status: "done",
-                          url: imageUrl,
-                        };
-                      })}
-                      onRemove={(file) => {
-                        // Get current images
-                        const currentVariants =
-                          form.getFieldValue("variants") || [];
-                        const currentImages =
-                          currentVariants[variantIndex]?.images || [];
+                    >
+                      <Form.Item
+                        {...restField}
+                        name={[variantIndex, "sku"]}
+                        label="SKU"
+                        rules={[{ required: true, message: "SKU is required" }]}
+                      >
+                        <Input placeholder="Unique SKU" />
+                      </Form.Item>
+                      <Form.Item
+                        {...restField}
+                        name={[variantIndex, "price"]}
+                        label="Price"
+                        rules={[{ required: true, message: "Price is required" }]}
+                      >
+                        <InputNumber
+                          min={0}
+                          style={{ width: "100%" }}
+                          placeholder="Variant Price"
+                        />
+                      </Form.Item>
+                      <Form.Item
+                        {...restField}
+                        name={[variantIndex, "stock"]}
+                        label="Stock"
+                        rules={[{ required: true, message: "Stock is required" }]}
+                      >
+                        <InputNumber
+                          min={0}
+                          style={{ width: "100%" }}
+                          placeholder="Available Stock"
+                        />
+                      </Form.Item>
 
-                        // Filter out the removed image
-                        const filteredImages = currentImages.filter(
-                          (img, idx) => {
+                      {/* Variant Images */}
+                      {/* <Form.Item
+                        {...restField}
+                        name={[variantIndex, "images"]}
+                        label="Variant Images"
+                        rules={[
+                          {
+                            required: true,
+                            message: "At least one image is required",
+                          },
+                        ]}
+                      >
+                        <Upload
+                          listType="picture-card"
+                          customRequest={({ file, onSuccess, onError }) => {
+                            const uploadedFile = file;
+                            handleVariantImageUpload(uploadedFile, variantIndex)
+                              .then(() => onSuccess?.({}, uploadedFile))
+                              .catch((err) => onError?.(err));
+                          }}
+                          fileList={(
+                            form.getFieldValue([
+                              "variants",
+                              variantIndex,
+                              "images",
+                            ]) || []
+                          ).map((img, idx) => {
                             const imageUrl =
                               typeof img === "string" ? img : img.url;
-                            return imageUrl !== file.url;
-                          }
-                        );
+                            return {
+                              uid: `-${idx}`,
+                              name: `variant-image-${idx}`,
+                              status: "done",
+                              url: imageUrl,
+                            };
+                          })}
+                          onRemove={(file) => {
+                            // Get current images
+                            const currentVariants =
+                              form.getFieldValue("variants") || [];
+                            const currentImages =
+                              currentVariants[variantIndex]?.images || [];
 
-                        // Update form
-                        const updatedVariants = [...currentVariants];
-                        updatedVariants[variantIndex] = {
-                          ...updatedVariants[variantIndex],
-                          images: filteredImages,
-                        };
+                            // Filter out the removed image
+                            const filteredImages = currentImages.filter(
+                              (img, idx) => {
+                                const imageUrl =
+                                  typeof img === "string" ? img : img.url;
+                                return imageUrl !== file.url;
+                              }
+                            );
 
-                        form.setFieldsValue({ variants: updatedVariants });
-                      }}
-                      disabled={uploading}
-                    >
-                      {uploading ? (
-                        "Uploading..."
-                      ) : (
-                        <Button icon={<PlusOutlined />}>Upload</Button>
-                      )}{" "}
-                    </Upload>
-                  </Form.Item> */}
+                            // Update form
+                            const updatedVariants = [...currentVariants];
+                            updatedVariants[variantIndex] = {
+                              ...updatedVariants[variantIndex],
+                              images: filteredImages,
+                            };
 
-                  {/* Dynamically render attribute selectors */}
-                  {variantAttributes.map((attr, idx) => (
-                    <Form.Item
-                      key={idx}
-                      label={attr.name || `Attribute ${idx + 1}`}
-                      name={[variantIndex, "attributes", attr.name]}
-                      rules={[
-                        {
-                          required: true,
-                          message: `Please select ${attr.name}`,
-                        },
-                      ]}
-                    >
-                      <Select placeholder={`Select ${attr.name}`}>
-                        {(attr.options || []).map((opt) => (
-                          <Select.Option key={opt} value={opt}>
-                            {opt}
-                          </Select.Option>
-                        ))}
-                      </Select>
-                    </Form.Item>
-                  ))}
+                            form.setFieldsValue({ variants: updatedVariants });
+                          }}
+                          disabled={uploading}
+                        >
+                          {uploading ? (
+                            "Uploading..."
+                          ) : (
+                            <Button icon={<PlusOutlined />}>Upload</Button>
+                          )}{" "}
+                        </Upload>
+                      </Form.Item> */}
 
-                  <Button
-                    onClick={() => remove(variantIndex)}
-                    type="text"
-                    danger
-                    icon={<MinusCircleOutlined />}
-                  >
-                    Remove Variant
-                  </Button>
-                </div>
-              ))}
+                      {/* Dynamically render attribute selectors */}
+                      {variantAttributes.map((attr, idx) => (
+                        <Form.Item
+                          key={idx}
+                          label={attr.name || `Attribute ${idx + 1}`}
+                          name={[variantIndex, "attributes", attr.name]}
+                          rules={[
+                            {
+                              required: true,
+                              message: `Please select ${attr.name}`,
+                            },
+                          ]}
+                        >
+                          <Select placeholder={`Select ${attr.name}`}>
+                            {(attr.options || []).map((opt) => (
+                              <Select.Option key={opt} value={opt}>
+                                {opt}
+                              </Select.Option>
+                            ))}
+                          </Select>
+                        </Form.Item>
+                      ))}
+
+                      <Button
+                        onClick={() => remove(variantIndex)}
+                        type="text"
+                        danger
+                        icon={<MinusCircleOutlined />}
+                      >
+                        Remove Variant
+                      </Button>
+                    </div>
+                  ),
+                }))}
+              />
               <Form.Item>
                 <Button
                   type="dashed"

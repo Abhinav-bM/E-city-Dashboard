@@ -7,5 +7,5 @@ export const addProduct = async (data) => {
 
 // Get all products
 export const getAllProducts = async () => {
-  return await httpService.get("/product/products");
+  return await httpService.get("/product/all");
 };
