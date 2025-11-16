@@ -30,11 +30,11 @@ const main = ({ children }) => {
               children: [
                 {
                   key: "2.1",
-                  label: <Link href="/products/allProducts">All products</Link>,
+                  label: <Link href="/products/all">All products</Link>,
                 },
                 {
                   key: "2.2",
-                  label: <Link href="/products/newProduct">Add product</Link>,
+                  label: <Link href="/products/add">Add product</Link>,
                 },
               ],
             },

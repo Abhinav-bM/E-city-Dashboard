@@ -12,10 +12,102 @@ import {
   InputNumber,
   message,
   Collapse,
+  Empty,
 } from "antd";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 const { TextArea } = Input;
+
+// Image Selector Component for Variants
+const VariantImageSelector = ({ form, variantIndex, prodImages }) => {
+  // Watch the variant images to reactively update the UI
+  const variantImages =
+    Form.useWatch(["variants", variantIndex, "images"], form) || [];
+
+  const handleImageToggle = (img) => {
+    const variants = form.getFieldValue("variants") || [];
+    const currentVariantImages = variants[variantIndex]?.images || [];
+
+    const isSelected = currentVariantImages.some(
+      (selectedImg) =>
+        (typeof selectedImg === "string" ? selectedImg : selectedImg?.url) ===
+        img.url
+    );
+
+    let updatedImages;
+    if (isSelected) {
+      // Remove image if already selected
+      updatedImages = currentVariantImages.filter(
+        (selectedImg) =>
+          (typeof selectedImg === "string" ? selectedImg : selectedImg?.url) !==
+          img.url
+      );
+    } else {
+      // Add image if not selected
+      updatedImages = [
+        ...currentVariantImages.map((selectedImg) =>
+          typeof selectedImg === "string" ? { url: selectedImg } : selectedImg
+        ),
+        img,
+      ];
+    }
+
+    const updatedVariants = [...variants];
+    updatedVariants[variantIndex] = {
+      ...updatedVariants[variantIndex],
+      images: updatedImages,
+    };
+
+    form.setFieldsValue({
+      variants: updatedVariants,
+    });
+  };
+
+  if (prodImages.length === 0) {
+    return (
+      <Empty
+        description="Please upload product images first"
+        image={Empty.PRESENTED_IMAGE_SIMPLE}
+      />
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-4 gap-4 p-4 border rounded-lg">
+      {prodImages.map((img, imgIndex) => {
+        const isSelected = variantImages.some(
+          (selectedImg) =>
+            (typeof selectedImg === "string"
+              ? selectedImg
+              : selectedImg?.url) === img.url
+        );
+
+        return (
+          <div
+            key={imgIndex}
+            className={`relative cursor-pointer border-2 rounded-lg overflow-hidden transition-all ${
+              isSelected
+                ? "border-blue-500 ring-2 ring-blue-300"
+                : "border-gray-200 hover:border-gray-400"
+            }`}
+            onClick={() => handleImageToggle(img)}
+          >
+            <img
+              src={img.url}
+              alt={`Product image ${imgIndex + 1}`}
+              className="w-full h-24 object-cover"
+            />
+            {isSelected && (
+              <div className="absolute top-1 right-1 bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                ✓
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 const AddProductForm = () => {
   const [form] = Form.useForm();
@@ -70,35 +162,35 @@ const AddProductForm = () => {
   };
 
   // Custom request handler for variant images
-  const handleVariantImageUpload = async ({ file, variantIndex }) => {
-    try {
-      const imageData = await uploadToCloudinary({ file });
+  // const handleVariantImageUpload = async ({ file, variantIndex }) => {
+  //   try {
+  //     const imageData = await uploadToCloudinary({ file });
 
-      // Get current variants
-      const variants = form.getFieldValue("variants") || [];
-      const variantImages = variants[variantIndex]?.images || [];
+  //     // Get current variants
+  //     const variants = form.getFieldValue("variants") || [];
+  //     const variantImages = variants[variantIndex]?.images || [];
 
-      // Ensuring images are sorted as object with url property
-      const updatedImages = [
-        ...variantImages.map((img) =>
-          typeof img === "string" ? { url: img } : img
-        ),
-        imageData,
-      ];
+  //     // Ensuring images are sorted as object with url property
+  //     const updatedImages = [
+  //       ...variantImages.map((img) =>
+  //         typeof img === "string" ? { url: img } : img
+  //       ),
+  //       imageData,
+  //     ];
 
-      // Update the form
-      const updatedVariants = [...variants];
-      updatedVariants[variantIndex] = {
-        ...updatedVariants[variantIndex],
-        images: updatedImages,
-      };
+  //     // Update the form
+  //     const updatedVariants = [...variants];
+  //     updatedVariants[variantIndex] = {
+  //       ...updatedVariants[variantIndex],
+  //       images: updatedImages,
+  //     };
 
-      form.setFieldsValue({ variants: updatedVariants });
-      message.success("Variant image uploaded successfully");
-    } catch (err) {
-      message.error("Failed to upload variant image");
-    }
-  };
+  //     form.setFieldsValue({ variants: updatedVariants });
+  //     message.success("Variant image uploaded successfully");
+  //   } catch (err) {
+  //     message.error("Failed to upload variant image");
+  //   }
+  // };
 
   // Form submission
   const _handleFormFinish = async (values) => {
@@ -144,9 +236,7 @@ const AddProductForm = () => {
         form.resetFields();
         setProdImages([]);
 
-        setTimeout(() => {
-          router.push("/products/allProducts");
-        }, 500);
+        router.push("/products/all");
       } else {
         throw new Error(response.message || "Failed to add product");
       }
@@ -206,9 +296,22 @@ const AddProductForm = () => {
           </Form.Item>
 
           <Form.Item
-            label="Base Price"
+            label="Actual Price"
             name="basePrice"
-            rules={[{ required: true, message: "Please enter the base price" }]}
+            rules={[
+              { required: true, message: "Please enter the actual price" },
+            ]}
+            className="w-full"
+          >
+            <InputNumber min={0} style={{ width: "100%" }} />
+          </Form.Item>
+
+          <Form.Item
+            label="Selling Price"
+            name="selling_price"
+            rules={[
+              { required: true, message: "Please enter the selling price" },
+            ]}
             className="w-full"
           >
             <InputNumber min={0} style={{ width: "100%" }} />
@@ -260,20 +363,25 @@ const AddProductForm = () => {
           {(fields, { add, remove }) => (
             <>
               {fields.map(({ key, name, ...restField }) => (
-                <div key={key} className="flex gap-2 items-center">
+                <div key={key} className="flex gap-2 w-full items-center">
                   <Form.Item
                     {...restField}
                     name={[name, "name"]}
                     rules={[
                       { required: true, message: "Attribute name required" },
                     ]}
+                    className=" w-full !m-0"
                   >
-                    <Input width={100} placeholder="Attribute (e.g., Color , Ram , Rom)" />
+                    <Input
+                      width={100}
+                      placeholder="Attribute (e.g., Color , Ram , Rom)"
+                    />
                   </Form.Item>
                   <Form.Item
                     {...restField}
                     name={[name, "options"]}
                     rules={[{ required: true, message: "Options required" }]}
+                    className="w-full !m-0"
                   >
                     <Select
                       mode="tags"
@@ -284,6 +392,7 @@ const AddProductForm = () => {
                     onClick={() => remove(name)}
                     type="text"
                     danger
+                    size="large"
                     icon={<MinusCircleOutlined />}
                   />
                 </div>
@@ -293,6 +402,7 @@ const AddProductForm = () => {
                   type="dashed"
                   onClick={() => add()}
                   icon={<PlusOutlined />}
+                  className=" mt-2"
                 >
                   Add Variant Attribute
                 </Button>
@@ -306,159 +416,114 @@ const AddProductForm = () => {
           {(fields, { add, remove }) => (
             <>
               <Collapse
-                items={fields.map(({ key, name: variantIndex, ...restField }) => ({
-                  key: key,
-                  label: `Variant ${variantIndex + 1}`,
-                  children: (
-                    <div
-                      style={{
-                        padding: 8,
-                      }}
-                    >
-                      <Form.Item
-                        {...restField}
-                        name={[variantIndex, "sku"]}
-                        label="SKU"
-                        rules={[{ required: true, message: "SKU is required" }]}
-                      >
-                        <Input placeholder="Unique SKU" />
-                      </Form.Item>
-                      <Form.Item
-                        {...restField}
-                        name={[variantIndex, "price"]}
-                        label="Price"
-                        rules={[{ required: true, message: "Price is required" }]}
-                      >
-                        <InputNumber
-                          min={0}
-                          style={{ width: "100%" }}
-                          placeholder="Variant Price"
-                        />
-                      </Form.Item>
-                      <Form.Item
-                        {...restField}
-                        name={[variantIndex, "stock"]}
-                        label="Stock"
-                        rules={[{ required: true, message: "Stock is required" }]}
-                      >
-                        <InputNumber
-                          min={0}
-                          style={{ width: "100%" }}
-                          placeholder="Available Stock"
-                        />
-                      </Form.Item>
-
-                      {/* Variant Images */}
-                      {/* <Form.Item
-                        {...restField}
-                        name={[variantIndex, "images"]}
-                        label="Variant Images"
-                        rules={[
-                          {
-                            required: true,
-                            message: "At least one image is required",
-                          },
-                        ]}
-                      >
-                        <Upload
-                          listType="picture-card"
-                          customRequest={({ file, onSuccess, onError }) => {
-                            const uploadedFile = file;
-                            handleVariantImageUpload(uploadedFile, variantIndex)
-                              .then(() => onSuccess?.({}, uploadedFile))
-                              .catch((err) => onError?.(err));
-                          }}
-                          fileList={(
-                            form.getFieldValue([
-                              "variants",
-                              variantIndex,
-                              "images",
-                            ]) || []
-                          ).map((img, idx) => {
-                            const imageUrl =
-                              typeof img === "string" ? img : img.url;
-                            return {
-                              uid: `-${idx}`,
-                              name: `variant-image-${idx}`,
-                              status: "done",
-                              url: imageUrl,
-                            };
-                          })}
-                          onRemove={(file) => {
-                            // Get current images
-                            const currentVariants =
-                              form.getFieldValue("variants") || [];
-                            const currentImages =
-                              currentVariants[variantIndex]?.images || [];
-
-                            // Filter out the removed image
-                            const filteredImages = currentImages.filter(
-                              (img, idx) => {
-                                const imageUrl =
-                                  typeof img === "string" ? img : img.url;
-                                return imageUrl !== file.url;
-                              }
-                            );
-
-                            // Update form
-                            const updatedVariants = [...currentVariants];
-                            updatedVariants[variantIndex] = {
-                              ...updatedVariants[variantIndex],
-                              images: filteredImages,
-                            };
-
-                            form.setFieldsValue({ variants: updatedVariants });
-                          }}
-                          disabled={uploading}
-                        >
-                          {uploading ? (
-                            "Uploading..."
-                          ) : (
-                            <Button icon={<PlusOutlined />}>Upload</Button>
-                          )}{" "}
-                        </Upload>
-                      </Form.Item> */}
-
-                      {/* Dynamically render attribute selectors */}
-                      {variantAttributes.map((attr, idx) => (
+                items={fields.map(
+                  ({ key, name: variantIndex, ...restField }) => ({
+                    key: key,
+                    label: `Variant ${variantIndex + 1}`,
+                    children: (
+                      <div className="flex flex-col w-full gap-4">
+                        {/* Variant Images */}
                         <Form.Item
-                          key={idx}
-                          label={attr.name || `Attribute ${idx + 1}`}
-                          name={[variantIndex, "attributes", attr.name]}
+                          {...restField}
+                          name={[variantIndex, "images"]}
+                          label="Variant Images"
                           rules={[
                             {
                               required: true,
-                              message: `Please select ${attr.name}`,
+                              message: "At least one image is required",
                             },
                           ]}
+                          className="w-full"
                         >
-                          <Select placeholder={`Select ${attr.name}`}>
-                            {(attr.options || []).map((opt) => (
-                              <Select.Option key={opt} value={opt}>
-                                {opt}
-                              </Select.Option>
-                            ))}
-                          </Select>
+                          <VariantImageSelector
+                            form={form}
+                            variantIndex={variantIndex}
+                            prodImages={prodImages}
+                          />
                         </Form.Item>
-                      ))}
+                        <div className="flex w-full gap-4 items-center">
+                          <Form.Item
+                            {...restField}
+                            name={[variantIndex, "sku"]}
+                            label="SKU"
+                            rules={[
+                              { required: true, message: "SKU is required" },
+                            ]}
+                          >
+                            <Input placeholder="Unique SKU" />
+                          </Form.Item>
+                          <Form.Item
+                            {...restField}
+                            name={[variantIndex, "price"]}
+                            label="Price"
+                            rules={[
+                              { required: true, message: "Price is required" },
+                            ]}
+                          >
+                            <InputNumber
+                              min={0}
+                              style={{ width: "100%" }}
+                              placeholder="Variant Price"
+                            />
+                          </Form.Item>
+                          <Form.Item
+                            {...restField}
+                            name={[variantIndex, "stock"]}
+                            label="Stock"
+                            rules={[
+                              { required: true, message: "Stock is required" },
+                            ]}
+                          >
+                            <InputNumber
+                              min={0}
+                              style={{ width: "100%" }}
+                              placeholder="Available Stock"
+                            />
+                          </Form.Item>
 
-                      <Button
-                        onClick={() => remove(variantIndex)}
-                        type="text"
-                        danger
-                        icon={<MinusCircleOutlined />}
-                      >
-                        Remove Variant
-                      </Button>
-                    </div>
-                  ),
-                }))}
+                          {/* Dynamically render attribute selectors */}
+                          {variantAttributes.map((attr, idx) => (
+                            <Form.Item
+                              key={idx}
+                              label={attr.name || `Attribute ${idx + 1}`}
+                              name={[variantIndex, "attributes", attr.name]}
+                              rules={[
+                                {
+                                  required: true,
+                                  message: `Please select ${attr.name}`,
+                                },
+                              ]}
+                            >
+                              <Select placeholder={`Select ${attr.name}`}>
+                                {(attr.options || []).map((opt) => (
+                                  <Select.Option key={opt} value={opt}>
+                                    {opt}
+                                  </Select.Option>
+                                ))}
+                              </Select>
+                            </Form.Item>
+                          ))}
+
+                          <Button
+                            onClick={() => remove(variantIndex)}
+                            type="text"
+                            danger
+                            icon={<MinusCircleOutlined />}
+                          >
+                            Remove Variant
+                          </Button>
+                        </div>
+                      </div>
+                    ),
+                  })
+                )}
               />
               <Form.Item>
                 <Button
                   type="dashed"
                   onClick={() => add()}
                   icon={<PlusOutlined />}
+                  className=" mt-2"
                 >
                   Add Variant
                 </Button>
@@ -467,7 +532,6 @@ const AddProductForm = () => {
           )}
         </Form.List>
 
-        
         <Form.Item
           label="Description"
           name="description"
