@@ -1,14 +1,17 @@
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb:
+    245, 247, 250; /* Softer light gray for dashboard background */
+  --background-end-rgb: 255, 255, 255;
 
-  --text-primary: rgb(0, 0, 0);
+  --primary-color: #1890ff; /* Ant Design Blue */
+  --secondary-color: #595959;
 
-  --theme-color: blue;
-}
+  --sidebar-bg: #001529; /* Dark Sidebar */
+  --sidebar-text: #rgba(255, 255, 255, 0.65);
+  --header-bg: #ffffff;
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  --card-shadow:
+    0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02),
+    0 2px 4px 0 rgba(0, 0, 0, 0.02);
 }
