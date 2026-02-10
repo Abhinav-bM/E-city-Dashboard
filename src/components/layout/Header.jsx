@@ -25,6 +25,12 @@ const Header = () => {
         </div>
       </div>
       <div className="flex items-center gap-4">
+        <Tooltip content="Notifications" position="bottom">
+          <button className="relative p-2 text-slate-500 hover:text-primary dark:text-slate-400 dark:hover:text-white transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-surface-dark">
+            <span className="material-symbols-outlined">notifications</span>
+          </button>
+        </Tooltip>
+
         <Tooltip
           content={
             theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"
@@ -39,19 +45,6 @@ const Header = () => {
               {theme === "dark" ? "light_mode" : "dark_mode"}
             </span>
           </button>
-        </Tooltip>
-
-        <Tooltip content="Notifications" position="bottom">
-          <button className="relative p-2 text-slate-500 hover:text-primary dark:text-slate-400 dark:hover:text-white transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-surface-dark">
-            <span className="material-symbols-outlined">notifications</span>
-            <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-500 border border-background-dark"></span>
-          </button>
-        </Tooltip>
-
-        <Tooltip content="Software Version" position="bottom">
-          <div className="hidden sm:flex h-8 w-16 bg-slate-100 dark:bg-surface-dark rounded-full items-center justify-center text-xs font-semibold text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-border-dark cursor-help">
-            v2.4.0
-          </div>
         </Tooltip>
       </div>
     </header>

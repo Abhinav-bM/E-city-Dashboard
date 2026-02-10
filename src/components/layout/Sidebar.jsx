@@ -171,6 +171,13 @@ const Sidebar = () => {
         </div>
 
         <SidebarItem
+          icon="home" // Using a Material Symbols icon name for consistency
+          label="Home Page"
+          href="/home-content"
+          active={pathname.includes("/home-content")}
+          collapsed={collapsed}
+        />
+        <SidebarItem
           icon="settings"
           label="Settings"
           href="/settings"

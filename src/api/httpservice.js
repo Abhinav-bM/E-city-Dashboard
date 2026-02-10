@@ -19,7 +19,7 @@ http.interceptors.request.use(
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => Promise.reject(error),
 );
 
 // Response Interceptor
@@ -28,7 +28,7 @@ http.interceptors.response.use(
   (error) => {
     console.error("API Error:", error?.response?.data || error.message);
     return Promise.reject(error.response?.data || error.message);
-  }
+  },
 );
 
 export default http;

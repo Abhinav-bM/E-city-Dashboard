@@ -2,6 +2,7 @@ import "@/assets/styles/styles.scss";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 import Mainwrapper from "@/wrapper/main";
 import { ThemeProvider } from "@/context/ThemeContext";
+import ToastProvider from "@/components/ui/ToastProvider";
 
 export const metadata = {
   title: "Create Next App",
@@ -30,6 +31,7 @@ export default function RootLayout({ children }) {
       <body>
         <AntdRegistry>
           <ThemeProvider>
+            <ToastProvider />
             <Mainwrapper>{children}</Mainwrapper>
           </ThemeProvider>
         </AntdRegistry>
