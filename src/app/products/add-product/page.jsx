@@ -10,9 +10,9 @@ import categoryService from "@/services/categoryService";
 import brandService from "@/services/brandService";
 import productService from "@/services/productService";
 import uploadService from "@/services/uploadService";
+import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  ChevronRight,
   Upload,
   X,
   Check,
@@ -25,7 +25,7 @@ import {
 import toast from "react-hot-toast";
 import { SectionLoader, Spinner } from "@/components/ui/Loader";
 
-export default function AddProduct() {
+function AddProductContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [currentStep, setCurrentStep] = useState(1);
@@ -1312,5 +1312,13 @@ export default function AddProduct() {
         </div>
       </div>
     </AdminLayout>
+  );
+}
+
+export default function AddProduct() {
+  return (
+    <Suspense fallback={<SectionLoader />}>
+      <AddProductContent />
+    </Suspense>
   );
 }
