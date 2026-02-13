@@ -115,18 +115,18 @@ const CategoryRow = ({ category, level = 0, onEdit, onDelete }) => {
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
               category.isActive
                 ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20"
-                : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700"
+                : "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-100 dark:border-red-500/20"
             }`}
           >
             <span
-              className={`h-1.5 w-1.5 rounded-full ${category.isActive ? "bg-emerald-500" : "bg-slate-400"}`}
+              className={`h-1.5 w-1.5 rounded-full ${category.isActive ? "bg-emerald-500" : "bg-red-500"}`}
             ></span>
-            {category.isActive ? "Active" : "Draft"}
+            {category.isActive ? "Active" : "Inactive"}
           </span>
         </div>
 
         {/* Actions Column */}
-        <div className="w-32 py-3 px-4 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="w-32 py-3 px-4 flex items-center justify-end gap-1">
           <Tooltip content="Edit" position="top">
             <button
               className="p-1.5 text-slate-400 hover:text-white hover:bg-primary rounded-md transition-colors"
@@ -210,6 +210,7 @@ export default function CategoriesPage() {
     // or implement a deep update helper. For now, let's refresh.
     try {
       await categoryService.delete(category._id);
+      toast.success(`Category ${action}d successfully`);
       fetchCategories();
     } catch (error) {
       toast.error(error.response?.data?.message || `Failed to ${action}`);
