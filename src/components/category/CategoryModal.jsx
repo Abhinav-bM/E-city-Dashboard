@@ -5,41 +5,22 @@ import SearchableSelect from "@/components/ui/SearchableSelect";
 import categoryService from "@/services/categoryService";
 import uploadService from "@/services/uploadService";
 import { CloudUpload, X, Home, Folder } from "lucide-react";
+import toast from "react-hot-toast";
 
-// Helper to upload to Cloudinary (using service)
+// Helper to upload to Cloudinary (using backend service)
 const uploadToCloudinary = async (file) => {
   try {
     const formData = new FormData();
-    formData.append("file", file);
-    // Note: uploadService expects 'image' key or we might need to adjust based on specific cloudinary requirements vs generic upload endpoint
-    // The previous code was hitting direct cloudinary URL?
-    // Wait, line 12 says `https://api.cloudinary.com/v1_1/${cloudName}/upload`.
-    // The generic uploadService hits `/api/upload/upload` which is our backend.
-    // I should check if I should use the backend upload service or keep direct cloudinary upload.
-    // The user said "api/upload/upload" in add-product/page.jsx, so I assume we should standardize to backend upload service if possible.
-    // BUT, the original code in CategoryModal was using direct Cloudinary upload.
-    // Let's stick to the directive "create api files... call that api handler".
-    // I already created uploadService which calls our backend.
-    // If I use uploadService here, it will go to our backend.
-    // If the original intention was direct cloudinary, I might need a cloudinaryService.
-    // However, for consistency, I'll switch to using the backend upload service if it supports the same flow.
-    // The previous code used a hardcoded cloudname. Moving to backend is safer.
+    formData.append("image", file); // Backend expects 'image' field
 
-    // Let's use the uploadService.uploadImage which sends it to our backend.
-    const res = await uploadService.uploadImage(file); // Argument needs to be FormData or file? uploadService takes formData.
-
-    // Correction: uploadService takes formData.
-    const uploadData = new FormData();
-    uploadData.append("image", file); // The backend likely expects 'image' field based on add-product/page.jsx
-
-    const response = await uploadService.uploadImage(uploadData);
+    const response = await uploadService.uploadImage(formData);
     if (response.success) {
       return response.data.url;
     } else {
-      throw new Error("Upload failed");
+      throw new Error(response.message || "Upload failed");
     }
   } catch (err) {
-    console.error("Upload Error :", err);
+    console.error("Upload Error:", err);
     throw err;
   }
 };
@@ -87,12 +68,12 @@ const CategoryModal = ({
 
     // Frontend Validation
     if (!formData.name.trim()) {
-      alert("Category name is required");
+      toast.error("Category name is required");
       setLoading(false);
       return;
     }
     if (category && formData.parentId === category._id) {
-      alert("A category cannot be its own parent");
+      toast.error("A category cannot be its own parent");
       setLoading(false);
       return;
     }
@@ -114,12 +95,17 @@ const CategoryModal = ({
       }
 
       if (data.success) {
+        toast.success(
+          category
+            ? "Category updated successfully"
+            : "Category created successfully",
+        );
         onSuccess();
         onClose();
       }
     } catch (error) {
       console.error("Failed to save category", error);
-      alert(error.response?.data?.message || "Something went wrong");
+      toast.error(error.response?.data?.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -130,11 +116,16 @@ const CategoryModal = ({
     if (!file) return;
 
     setUploading(true);
+    toast.loading("Uploading image...", { id: "upload-toast" });
     try {
       const imageUrl = await uploadToCloudinary(file);
       setFormData({ ...formData, image: imageUrl });
+      toast.success("Image uploaded successfully", { id: "upload-toast" });
     } catch (error) {
-      alert("Failed to upload image");
+      console.error("Image upload error:", error);
+      toast.error(error.message || "Failed to upload image", {
+        id: "upload-toast",
+      });
     } finally {
       setUploading(false);
     }

@@ -263,6 +263,44 @@ export default function ProductList() {
         </div>
       </div>
 
+      {/* Product Type Toggle */}
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white mb-1">
+              Product Type
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Switch between new and used/refurbished products
+            </p>
+          </div>
+          <div className="inline-flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1 gap-1">
+            <button
+              onClick={() => setInventoryType("Quantity")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium transition-all ${
+                inventoryType === "Quantity"
+                  ? "bg-white dark:bg-slate-700 text-primary shadow-sm"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              }`}
+            >
+              <Package size={16} />
+              New Products
+            </button>
+            <button
+              onClick={() => setInventoryType("Unique")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium transition-all ${
+                inventoryType === "Unique"
+                  ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              }`}
+            >
+              <RefreshCcw size={16} />
+              Used / Refurbished
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Filters Toolbar */}
       <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm mb-6 space-y-4 md:space-y-0 md:flex md:items-center md:gap-4">
         {/* Search */}
@@ -282,16 +320,6 @@ export default function ProductList() {
 
         {/* Dropdowns */}
         <div className="flex gap-3 flex-wrap">
-          <select
-            className="px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:border-primary cursor-pointer flex-shrink-0"
-            value={inventoryType}
-            onChange={(e) => setInventoryType(e.target.value)}
-          >
-            <option value="">All Types</option>
-            <option value="Quantity">New Items</option>
-            <option value="Unique">Used / Unique</option>
-          </select>
-
           <select
             className="px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:border-primary cursor-pointer flex-shrink-0"
             value={selectedCategory}
@@ -400,13 +428,21 @@ export default function ProductList() {
                         .join(" / ")
                     : "";
 
+                  // Determine product type for color coding
+                  const isNewProduct = product.inventoryType === "Quantity";
+                  const isUsedProduct = product.inventoryType === "Unique";
+
                   return (
                     <tr
                       key={product.variantId || product._id}
-                      className={`group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${
+                      className={`group transition-colors ${
                         !product.isActive
                           ? "opacity-60 grayscale bg-slate-50 dark:bg-slate-800/20"
-                          : ""
+                          : isNewProduct
+                            ? "hover:bg-blue-50/30 dark:hover:bg-blue-900/10 border-l-2 border-blue-400/40"
+                            : isUsedProduct
+                              ? "hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 border-l-2 border-emerald-400/40"
+                              : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
                       }`}
                     >
                       <td className="p-4">
@@ -420,7 +456,9 @@ export default function ProductList() {
                           <div className="h-12 w-12 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0 overflow-hidden flex items-center justify-center">
                             {product.images && product.images[0] ? (
                               <img
-                                src={product.images[0]}
+                                src={
+                                  product.images[0]?.url || product.images[0]
+                                }
                                 alt={product.title}
                                 className="h-full w-full object-cover"
                               />

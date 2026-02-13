@@ -31,6 +31,7 @@ export default function AddProduct() {
   const [loading, setLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [productId, setProductId] = useState(null);
+  const [uploadingImages, setUploadingImages] = useState(false);
 
   // -- Global Form State --
   const [formData, setFormData] = useState({
@@ -52,7 +53,7 @@ export default function AddProduct() {
     // Step 2 (Alternative for Used): Unique Item Details
     imei: "",
     serialNumber: "",
-    conditionGrade: "Excellent", // Brand New | Like New | Excellent | Good | Fair
+    conditionGrade: "Excellent", // Like New | Excellent | Good | Fair
     conditionDescription: "",
     sellingPrice: "",
     actualPrice: "",
@@ -131,7 +132,12 @@ export default function AddProduct() {
             description: product.baseProduct?.description || "",
             condition: product.currentVariant?.condition || "New",
             images:
-              product.baseProduct?.images?.map((img) => img.url || img) || [],
+              (product.currentVariant?.images?.length > 0
+                ? product.currentVariant.images
+                : product.baseProduct?.images || []
+              )
+                .map((img) => (typeof img === "object" ? img.url : img))
+                .filter(Boolean) || [],
             isFeatured: product.baseProduct?.isFeatured || false,
             isNewArrival: product.baseProduct?.isNewArrival || false,
             specifications: product.baseProduct?.specifications || [],
@@ -216,19 +222,27 @@ export default function AddProduct() {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    // Upload Logic Here (Optimistic or Real)
-    // For now, let's assume real upload to get URLs
-    // Using existing upload endpoint pattern
+    setUploadingImages(true);
+    const toastId = toast.loading(`Uploading ${files.length} image(s)...`);
+
     const uploadedUrls = [];
+    let successCount = 0;
+    let failCount = 0;
 
     for (const file of files) {
       const form = new FormData();
       form.append("image", file);
       try {
         const res = await uploadService.uploadImage(form);
-        if (res.success) uploadedUrls.push(res.data.url);
+        if (res.success) {
+          uploadedUrls.push(res.data.url);
+          successCount++;
+        } else {
+          failCount++;
+        }
       } catch (err) {
         console.error("Upload failed for file", file.name, err);
+        failCount++;
       }
     }
 
@@ -236,6 +250,23 @@ export default function AddProduct() {
       ...prev,
       images: [...prev.images, ...uploadedUrls],
     }));
+
+    setUploadingImages(false);
+
+    if (successCount > 0 && failCount === 0) {
+      toast.success(`${successCount} image(s) uploaded successfully!`, {
+        id: toastId,
+      });
+    } else if (successCount > 0 && failCount > 0) {
+      toast.success(`${successCount} uploaded, ${failCount} failed`, {
+        id: toastId,
+      });
+    } else {
+      toast.error("Failed to upload images", { id: toastId });
+    }
+
+    // Reset input
+    e.target.value = "";
   };
 
   const removeImage = (index) => {
@@ -541,21 +572,30 @@ export default function AddProduct() {
       <div className="xl:col-span-1">
         <Card title="Media Gallery">
           <div className="flex flex-col h-full">
-            <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer relative group">
+            <div
+              className={`border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-6 flex flex-col items-center justify-center text-center transition-colors relative group ${uploadingImages ? "opacity-60 cursor-not-allowed" : "hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"}`}
+            >
               <input
                 type="file"
                 multiple
                 accept="image/*"
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 onChange={handleImageUpload}
+                disabled={uploadingImages}
               />
-              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-primary mb-3 group-hover:scale-110 transition-transform">
-                <Upload size={24} />
+              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-primary mb-3 group-hover:scale-110 transition-transform pointer-events-none">
+                {uploadingImages ? (
+                  <Spinner className="animate-spin" size={24} />
+                ) : (
+                  <Upload size={24} />
+                )}
               </div>
-              <p className="text-sm font-medium text-slate-900 dark:text-white mb-1">
-                Click to upload or drag and drop
+              <p className="text-sm font-medium text-slate-900 dark:text-white mb-1 pointer-events-none">
+                {uploadingImages
+                  ? "Uploading..."
+                  : "Click to upload or drag and drop"}
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 pointer-events-none">
                 SVG, PNG, JPG or GIF (max. 5MB)
               </p>
             </div>
@@ -856,13 +896,7 @@ export default function AddProduct() {
     }
 
     // --- RENDER FOR USED / UNIQUE ITEMS ---
-    const conditionGrades = [
-      "Brand New",
-      "Like New",
-      "Excellent",
-      "Good",
-      "Fair",
-    ];
+    const conditionGrades = ["Like New", "Excellent", "Good", "Fair"];
 
     return (
       <div className="space-y-6">

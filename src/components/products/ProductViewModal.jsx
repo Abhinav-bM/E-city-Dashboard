@@ -99,7 +99,10 @@ export default function ProductViewModal({ isOpen, onClose, productSlug }) {
                 {product.currentVariant?.images &&
                 product.currentVariant.images.length > 0 ? (
                   <img
-                    src={product.currentVariant.images[selectedImage]}
+                    src={
+                      product.currentVariant.images[selectedImage]?.url ||
+                      product.currentVariant.images[selectedImage]
+                    }
                     alt={product.currentVariant.title}
                     className="w-full h-full object-contain p-4 transition-transform duration-300 group-hover:scale-105"
                   />
@@ -123,7 +126,7 @@ export default function ProductViewModal({ isOpen, onClose, productSlug }) {
                       }`}
                     >
                       <img
-                        src={img}
+                        src={img?.url || img}
                         alt={`Thumbnail ${idx}`}
                         className="w-full h-full object-contain p-1"
                       />
