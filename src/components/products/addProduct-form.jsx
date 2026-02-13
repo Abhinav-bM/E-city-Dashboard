@@ -31,7 +31,7 @@ const VariantImageSelector = ({ form, variantIndex, prodImages }) => {
     const isSelected = currentVariantImages.some(
       (selectedImg) =>
         (typeof selectedImg === "string" ? selectedImg : selectedImg?.url) ===
-        img.url
+        img.url,
     );
 
     let updatedImages;
@@ -40,13 +40,13 @@ const VariantImageSelector = ({ form, variantIndex, prodImages }) => {
       updatedImages = currentVariantImages.filter(
         (selectedImg) =>
           (typeof selectedImg === "string" ? selectedImg : selectedImg?.url) !==
-          img.url
+          img.url,
       );
     } else {
       // Add image if not selected
       updatedImages = [
         ...currentVariantImages.map((selectedImg) =>
-          typeof selectedImg === "string" ? { url: selectedImg } : selectedImg
+          typeof selectedImg === "string" ? { url: selectedImg } : selectedImg,
         ),
         img,
       ];
@@ -79,7 +79,7 @@ const VariantImageSelector = ({ form, variantIndex, prodImages }) => {
           (selectedImg) =>
             (typeof selectedImg === "string"
               ? selectedImg
-              : selectedImg?.url) === img.url
+              : selectedImg?.url) === img.url,
         );
 
         return (
@@ -202,7 +202,7 @@ const AddProductForm = () => {
         (attr) => ({
           name: attr.name,
           values: attr.options, // Rename options to values to match schema
-        })
+        }),
       );
 
       // Transform variants to match schema structure
@@ -242,7 +242,7 @@ const AddProductForm = () => {
       }
     } catch (error) {
       message.error(
-        "Failed to add product: " + (error.message || "Unknown error")
+        "Failed to add product: " + (error.message || "Unknown error"),
       );
     }
   };
@@ -257,6 +257,7 @@ const AddProductForm = () => {
         initialValues={{
           variantAttributes: [],
           variants: [],
+          specifications: [],
         }}
       >
         {/* Basic Product Details */}
@@ -290,7 +291,7 @@ const AddProductForm = () => {
                   <Select.Option key={cat} value={cat}>
                     {cat}
                   </Select.Option>
-                )
+                ),
               )}
             </Select>
           </Form.Item>
@@ -343,7 +344,7 @@ const AddProductForm = () => {
             }))}
             onRemove={(file) => {
               const newImages = prodImages.filter(
-                (img) => img.url !== file.url
+                (img) => img.url !== file.url,
               );
               setProdImages(newImages);
             }}
@@ -411,6 +412,109 @@ const AddProductForm = () => {
           )}
         </Form.List>
 
+        {/* Specifications */}
+        <div className="border p-4 rounded-lg mb-4 bg-gray-50">
+          <h3 className="text-lg font-semibold mb-3">
+            Detailed Specifications
+          </h3>
+          <Form.List name="specifications">
+            {(fields, { add, remove }) => (
+              <div className="flex flex-col gap-4">
+                {fields.map(({ key, name: groupIndex, ...restField }) => (
+                  <Card
+                    key={key}
+                    size="small"
+                    title={
+                      <div className="flex justify-between items-center">
+                        <span>Specification Group {groupIndex + 1}</span>
+                        <Button
+                          type="text"
+                          danger
+                          onClick={() => remove(groupIndex)}
+                          icon={<MinusCircleOutlined />}
+                        >
+                          Remove Group
+                        </Button>
+                      </div>
+                    }
+                  >
+                    <Form.Item
+                      {...restField}
+                      name={[groupIndex, "group"]}
+                      label="Group Name"
+                      rules={[
+                        { required: true, message: "Group name is required" },
+                      ]}
+                    >
+                      <Input placeholder="e.g., Display, Camera, Processor" />
+                    </Form.Item>
+
+                    {/* Nested Items List */}
+                    <Form.List name={[groupIndex, "items"]}>
+                      {(itemFields, { add: addItem, remove: removeItem }) => (
+                        <>
+                          {itemFields.map(
+                            ({
+                              key: itemKey,
+                              name: itemIndex,
+                              ...itemRest
+                            }) => (
+                              <div
+                                key={itemKey}
+                                className="flex gap-2 items-center mb-2"
+                              >
+                                <Form.Item
+                                  {...itemRest}
+                                  name={[itemIndex, "key"]}
+                                  rules={[{ required: true, message: "Req" }]}
+                                  className="mb-0 flex-1"
+                                >
+                                  <Input placeholder="Key (e.g., Resolution)" />
+                                </Form.Item>
+                                <Form.Item
+                                  {...itemRest}
+                                  name={[itemIndex, "value"]}
+                                  rules={[{ required: true, message: "Req" }]}
+                                  className="mb-0 flex-1"
+                                >
+                                  <Input placeholder="Value (e.g., 1080p)" />
+                                </Form.Item>
+                                <Button
+                                  type="text"
+                                  danger
+                                  onClick={() => removeItem(itemIndex)}
+                                  icon={<MinusCircleOutlined />}
+                                />
+                              </div>
+                            ),
+                          )}
+                          <Button
+                            type="dashed"
+                            onClick={() => addItem()}
+                            block
+                            icon={<PlusOutlined />}
+                            size="small"
+                          >
+                            Add Spec Item
+                          </Button>
+                        </>
+                      )}
+                    </Form.List>
+                  </Card>
+                ))}
+                <Button
+                  type="dashed"
+                  onClick={() => add()}
+                  block
+                  icon={<PlusOutlined />}
+                >
+                  Add Specification Group
+                </Button>
+              </div>
+            )}
+          </Form.List>
+        </div>
+
         {/* Variants */}
         <Form.List name="variants">
           {(fields, { add, remove }) => (
@@ -441,7 +545,9 @@ const AddProductForm = () => {
                             prodImages={prodImages}
                           />
                         </Form.Item>
-                        <div className="flex w-full gap-4 items-center">
+
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                          {/* SKU */}
                           <Form.Item
                             {...restField}
                             name={[variantIndex, "sku"]}
@@ -452,6 +558,8 @@ const AddProductForm = () => {
                           >
                             <Input placeholder="Unique SKU" />
                           </Form.Item>
+
+                          {/* Price */}
                           <Form.Item
                             {...restField}
                             name={[variantIndex, "price"]}
@@ -466,6 +574,8 @@ const AddProductForm = () => {
                               placeholder="Variant Price"
                             />
                           </Form.Item>
+
+                          {/* Stock */}
                           <Form.Item
                             {...restField}
                             name={[variantIndex, "stock"]}
@@ -481,7 +591,18 @@ const AddProductForm = () => {
                             />
                           </Form.Item>
 
-                          {/* Dynamically render attribute selectors */}
+                          {/* Warranty */}
+                          <Form.Item
+                            {...restField}
+                            name={[variantIndex, "warranty"]}
+                            label="Warranty"
+                          >
+                            <Input placeholder="e.g. 1 Year" />
+                          </Form.Item>
+                        </div>
+
+                        {/* Dynamic Attributes */}
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 bg-slate-50 p-3 rounded-lg">
                           {variantAttributes.map((attr, idx) => (
                             <Form.Item
                               key={idx}
@@ -493,6 +614,7 @@ const AddProductForm = () => {
                                   message: `Please select ${attr.name}`,
                                 },
                               ]}
+                              className="mb-0"
                             >
                               <Select placeholder={`Select ${attr.name}`}>
                                 {(attr.options || []).map((opt) => (
@@ -503,19 +625,127 @@ const AddProductForm = () => {
                               </Select>
                             </Form.Item>
                           ))}
-
-                          <Button
-                            onClick={() => remove(variantIndex)}
-                            type="text"
-                            danger
-                            icon={<MinusCircleOutlined />}
-                          >
-                            Remove Variant
-                          </Button>
                         </div>
+
+                        {/* Condition & Inventory Type */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <Form.Item
+                            {...restField}
+                            name={[variantIndex, "condition"]}
+                            label="Condition"
+                            initialValue="New"
+                          >
+                            <Select>
+                              <Select.Option value="New">New</Select.Option>
+                              <Select.Option value="Open Box">
+                                Open Box
+                              </Select.Option>
+                              <Select.Option value="Refurbished">
+                                Refurbished
+                              </Select.Option>
+                              <Select.Option value="Used">Used</Select.Option>
+                            </Select>
+                          </Form.Item>
+
+                          <Form.Item
+                            {...restField}
+                            name={[variantIndex, "inventoryType"]}
+                            label="Inventory Type"
+                            initialValue="Quantity"
+                          >
+                            <Select>
+                              <Select.Option value="Quantity">
+                                Quantity (Standard)
+                              </Select.Option>
+                              <Select.Option value="Unique">
+                                Unique (Serial/IMEI)
+                              </Select.Option>
+                            </Select>
+                          </Form.Item>
+                        </div>
+
+                        {/* Conditional Fields: Condition Name & Description */}
+                        <Form.Item
+                          noStyle
+                          shouldUpdate={(prev, curr) =>
+                            prev.variants?.[variantIndex]?.condition !==
+                            curr.variants?.[variantIndex]?.condition
+                          }
+                        >
+                          {({ getFieldValue }) => {
+                            const condition = getFieldValue([
+                              "variants",
+                              variantIndex,
+                              "condition",
+                            ]);
+                            return condition !== "New" ? (
+                              <Form.Item
+                                {...restField}
+                                name={[variantIndex, "conditionDescription"]}
+                                label="Condition Description"
+                                rules={[
+                                  {
+                                    required: true,
+                                    message: "Desc required for used items",
+                                  },
+                                ]}
+                              >
+                                <TextArea
+                                  rows={2}
+                                  placeholder="Describe scratches, dents, or missing accessories..."
+                                />
+                              </Form.Item>
+                            ) : null;
+                          }}
+                        </Form.Item>
+
+                        {/* Conditional Fields: Unique Items */}
+                        <Form.Item
+                          noStyle
+                          shouldUpdate={(prev, curr) =>
+                            prev.variants?.[variantIndex]?.inventoryType !==
+                            curr.variants?.[variantIndex]?.inventoryType
+                          }
+                        >
+                          {({ getFieldValue }) => {
+                            const type = getFieldValue([
+                              "variants",
+                              variantIndex,
+                              "inventoryType",
+                            ]);
+                            return type === "Unique" ? (
+                              <div className="grid grid-cols-2 gap-4">
+                                <Form.Item
+                                  {...restField}
+                                  name={[variantIndex, "serialNumber"]}
+                                  label="Serial Number"
+                                >
+                                  <Input placeholder="S/N" />
+                                </Form.Item>
+                                <Form.Item
+                                  {...restField}
+                                  name={[variantIndex, "imei"]}
+                                  label="IMEI"
+                                >
+                                  <Input placeholder="IMEI" />
+                                </Form.Item>
+                              </div>
+                            ) : null;
+                          }}
+                        </Form.Item>
+
+                        <Button
+                          onClick={() => remove(variantIndex)}
+                          type="text"
+                          danger
+                          icon={<MinusCircleOutlined />}
+                          className="self-end"
+                        >
+                          Remove Variant
+                        </Button>
                       </div>
                     ),
-                  })
+                  }),
                 )}
               />
               <Form.Item>

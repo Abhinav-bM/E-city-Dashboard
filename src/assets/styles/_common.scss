@@ -12,11 +12,11 @@
         @apply bg-gray-100;
       }
       .ant-menu-item-active {
-        @apply text-themeColor !important;
+        @apply text-primary !important;
       }
 
       .ant-menu-item {
-        @apply text-textPrimary;
+        @apply text-slate-900 dark:text-white;
       }
 
       .ant-menu {
