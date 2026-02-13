@@ -5,11 +5,11 @@ import { usePathname } from "next/navigation";
 import Tooltip from "../ui/Tooltip";
 
 const SidebarItem = ({ icon, label, href, active, collapsed, subItems }) => {
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const hasSubItems = subItems && subItems.length > 0;
   const isSubItemActive =
-    hasSubItems &&
-    subItems.some((item) => window.location.pathname === item.href);
+    hasSubItems && subItems.some((item) => pathname === item.href);
 
   // Auto-expand if child is active
   React.useEffect(() => {
@@ -61,7 +61,7 @@ const SidebarItem = ({ icon, label, href, active, collapsed, subItems }) => {
               key={idx}
               href={sub.href}
               className={`block px-3 py-2 text-xs font-medium rounded-md transition-colors ${
-                window.location.pathname === sub.href
+                pathname === sub.href
                   ? "text-primary bg-primary/5"
                   : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               }`}

@@ -5,6 +5,7 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import Tooltip from "@/components/ui/Tooltip";
+import { useRouter } from "next/navigation";
 
 // Mock Data for "Recent Orders"
 const recentOrders = [
@@ -79,6 +80,8 @@ const MetricCard = ({ title, value, change, icon, trend }) => (
 );
 
 export default function Dashboard() {
+  const router = useRouter();
+
   return (
     <AdminLayout>
       <div className="flex flex-col gap-8">
@@ -100,7 +103,7 @@ export default function Dashboard() {
               <Button
                 variant="primary"
                 icon="add"
-                onClick={() => (window.location.href = "/products/add-product")}
+                onClick={() => router.push("/products/add-product")}
               >
                 Add Product
               </Button>

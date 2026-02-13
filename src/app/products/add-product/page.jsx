@@ -10,7 +10,7 @@ import categoryService from "@/services/categoryService";
 import brandService from "@/services/brandService";
 import productService from "@/services/productService";
 import uploadService from "@/services/uploadService";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronRight,
   Upload,
@@ -27,6 +27,7 @@ import { SectionLoader, Spinner } from "@/components/ui/Loader";
 
 export default function AddProduct() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -69,7 +70,6 @@ export default function AddProduct() {
 
   // Check for edit mode on mount
   useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
     const editParam = searchParams.get("edit");
     const idParam = searchParams.get("id");
 
@@ -77,7 +77,7 @@ export default function AddProduct() {
       setIsEditMode(true);
       setProductId(idParam);
     }
-  }, []);
+  }, [searchParams]);
 
   // Fetch metadata (categories and brands)
   useEffect(() => {

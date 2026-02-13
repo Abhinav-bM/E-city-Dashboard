@@ -12,8 +12,9 @@ const http = axios.create({
 // Request Interceptor
 http.interceptors.request.use(
   (config) => {
-    // Add authorization token if available
-    const token = localStorage.getItem("authToken");
+    // Add authorization token if available (client-side only)
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

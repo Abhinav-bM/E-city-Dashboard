@@ -99,7 +99,7 @@ const AddProductPage = () => {
         });
         // Reset form or Redirect
         setTimeout(() => {
-          // window.location.href = '/products/all'; // "Boring" redirect
+          // router.push('/products/all'); // "Boring" redirect
           setCurrent(0);
           setProductData({
             name: "",
