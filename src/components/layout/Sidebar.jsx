@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Tooltip from "../ui/Tooltip";
 
+import { useAuth } from "../../context/AuthContext";
+
 const SidebarItem = ({ icon, label, href, active, collapsed, subItems }) => {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
@@ -86,6 +88,7 @@ const SidebarItem = ({ icon, label, href, active, collapsed, subItems }) => {
 const Sidebar = () => {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const { admin, logout } = useAuth();
 
   // Listen to window location for active state in sub-items (simple workaround for now)
   // In a real app, usePathname is sufficient usually.
@@ -207,24 +210,33 @@ const Sidebar = () => {
 
       <div className="p-4 border-t border-slate-200 dark:border-border-dark">
         <div
-          className={`flex items-center gap-3 p-2 rounded-lg bg-slate-50 dark:bg-surface-dark/50 border border-slate-200 dark:border-border-dark ${collapsed ? "justify-center" : ""}`}
+          className={`group flex items-center gap-3 p-2 rounded-lg bg-slate-50 dark:bg-surface-dark/50 border border-slate-200 dark:border-border-dark hover:border-primary/30 transition-all ${collapsed ? "justify-center" : ""}`}
         >
           <div
             className="h-8 w-8 rounded-full bg-center bg-cover border border-slate-300 dark:border-slate-600 shrink-0"
             style={{
               backgroundImage:
-                "url('https://lh3.googleusercontent.com/aida-public/AB6AXuCAD1MzsiUFWqnFr6dM0U7Dwn3GRxgcdxrv_jgbTxpDFVEX1tSGOPnPBT5GmADRBc6ljp49EBp_5E_B9qzR_oXAhcl2hHw2nounqDBmidGf5eKS4t_n68AhX4m6rl2EzB0g33Y_xmBFNZYutUbZPp9ohNIyYOJOJreJ4AG0QJyUVKUBhn8aznRruyGv4sWOoi8dESXC2FyaDXqg1TmE7nlwecRbOqMAe2_aZo80EihkUhGIsVteuuWp3UVZFrr1MzxtxSXL3g5XkFw')",
+                "url('https://api.dicebear.com/7.x/avataaars/svg?seed=Admin')",
             }}
           ></div>
           {!collapsed && (
-            <div className="flex flex-col min-w-0 animate-in fade-in duration-300">
+            <div className="flex flex-col min-w-0 animate-in fade-in duration-300 flex-1">
               <p className="text-slate-900 dark:text-white text-sm font-medium truncate">
-                Admin User
+                {admin?.name || "Admin User"}
               </p>
               <p className="text-slate-500 dark:text-slate-400 text-xs truncate">
-                admin@ecity.com
+                {admin?.email || "admin@ecity.com"}
               </p>
             </div>
+          )}
+          {!collapsed && (
+            <button
+              onClick={logout}
+              className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded transition-colors"
+              title="Logout"
+            >
+              <span className="material-symbols-outlined text-lg">logout</span>
+            </button>
           )}
         </div>
       </div>

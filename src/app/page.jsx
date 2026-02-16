@@ -1,10 +1,10 @@
 "use client";
 import React from "react";
-import AdminLayout from "@/components/layout/AdminLayout";
-import Card from "@/components/ui/Card";
-import Button from "@/components/ui/Button";
-import Badge from "@/components/ui/Badge";
-import Tooltip from "@/components/ui/Tooltip";
+import AdminLayout from "../components/layout/AdminLayout";
+import Card from "../components/ui/Card";
+import Button from "../components/ui/Button";
+import Badge from "../components/ui/Badge";
+import Tooltip from "../components/ui/Tooltip";
 import { useRouter } from "next/navigation";
 
 // Mock Data for "Recent Orders"

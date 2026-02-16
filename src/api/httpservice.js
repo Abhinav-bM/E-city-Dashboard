@@ -3,21 +3,34 @@ import axios from "axios";
 // Create Axios instance
 const http = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_BASE_URL,
-  timeout: 10000, // Set request timeout (10 seconds)
+  timeout: 10000,
+  withCredentials: true,
+  xsrfCookieName: "XSRF-TOKEN",
+  xsrfHeaderName: "X-XSRF-TOKEN",
   headers: {
     "Content-Type": "application/json",
   },
 });
 
+// Helper to get cookie by name
+const getCookie = (name) => {
+  if (typeof document === "undefined") return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(";").shift();
+  return null;
+};
+
 // Request Interceptor
 http.interceptors.request.use(
   (config) => {
-    // Add authorization token if available (client-side only)
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    // Manually handle CSRF token for cross-origin requests
+    const csrfToken = getCookie("XSRF-TOKEN");
+    if (csrfToken && config.method !== "get") {
+      config.headers["X-XSRF-TOKEN"] = csrfToken;
     }
+
+    // Cookies are handled automatically by the browser with withCredentials: true.
     return config;
   },
   (error) => Promise.reject(error),
@@ -26,7 +39,55 @@ http.interceptors.request.use(
 // Response Interceptor
 http.interceptors.response.use(
   (response) => response.data,
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config;
+
+    // If the error is 401 and not already retrying
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !originalRequest.url.includes("/admin/auth/refresh") &&
+      !originalRequest.url.includes("/admin/auth/login")
+    ) {
+      originalRequest._retry = true;
+
+      try {
+        // Attempt to refresh the token
+        await axios.post(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/admin/auth/refresh`,
+          {},
+          { withCredentials: true },
+        );
+
+        // Retry the original request
+        return http(originalRequest);
+      } catch (refreshError) {
+        // If refresh fails, redirect to login or handle session expiration
+        console.error("Session expired:", refreshError);
+
+        if (typeof window !== "undefined") {
+          const currentPath = window.location.pathname;
+          // Avoid redirect loop if already on login page
+          if (!currentPath.includes("/auth/login")) {
+            window.location.href = "/auth/login";
+          }
+        }
+        return Promise.reject(refreshError);
+      }
+    }
+
+    // Still reject other 401s (e.g. from login itself) but don't loop
+    if (error.response?.status === 401 && typeof window !== "undefined") {
+      const currentPath = window.location.pathname;
+      if (
+        !currentPath.includes("/auth/login") &&
+        !originalRequest.url.includes("/admin/auth/login")
+      ) {
+        // Only redirect if not already on login and not a login request
+        // window.location.href = "/auth/login";
+      }
+    }
+
     console.error("API Error:", error?.response?.data || error.message);
     return Promise.reject(error.response?.data || error.message);
   },

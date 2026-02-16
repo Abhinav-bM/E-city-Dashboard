@@ -4,21 +4,33 @@ import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
+import { message } from "antd";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { login } = useAuth();
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    // Simulate login
-    setTimeout(() => {
+
+    try {
+      const result = await login(email, password);
+      if (result.success) {
+        message.success("Logged in successfully!");
+        router.push("/");
+      } else {
+        message.error(result.error || "Invalid credentials");
+      }
+    } catch (error) {
+      message.error("An unexpected error occurred");
+    } finally {
       setIsLoading(false);
-      router.push("/");
-    }, 1500);
+    }
   };
 
   return (
