@@ -2,15 +2,18 @@
 const nextConfig = {
   async rewrites() {
     const apiUrl =
-      process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
+      process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000/api";
+    // Remove /api from destination if apiUrl already contains it
+    const cleanApiUrl = apiUrl.replace(/\/api$/, "");
+
     return [
       {
         source: "/api/:path*",
-        destination: `${apiUrl}/api/:path*`,
+        destination: `${cleanApiUrl}/api/:path*`,
       },
       {
         source: "/uploads/:path*",
-        destination: `${apiUrl}/uploads/:path*`,
+        destination: `${cleanApiUrl}/uploads/:path*`,
       },
     ];
   },

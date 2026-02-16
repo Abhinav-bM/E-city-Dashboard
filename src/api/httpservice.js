@@ -2,7 +2,7 @@ import axios from "axios";
 
 // Create Axios instance
 const http = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL,
+  baseURL: "/api",
   timeout: 10000,
   withCredentials: true,
   xsrfCookieName: "XSRF-TOKEN",
@@ -52,9 +52,9 @@ http.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        // Attempt to refresh the token
+        // Attempt to refresh the token using a relative path
         await axios.post(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/admin/auth/refresh`,
+          "/api/admin/auth/refresh",
           {},
           { withCredentials: true },
         );
