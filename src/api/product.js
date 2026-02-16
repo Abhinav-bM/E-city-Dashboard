@@ -9,3 +9,4 @@ export const addProduct = async (data) => {
 export const getAllProducts = async () => {
   return await httpService.get("/product/all");
 };
+
