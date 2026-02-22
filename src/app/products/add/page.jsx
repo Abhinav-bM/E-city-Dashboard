@@ -11,8 +11,9 @@ import {
   getProductByBaseId,
 } from "../../../api/product";
 import uploadService from "@/services/uploadService";
+import { Suspense } from "react";
 
-const AddProductPage = () => {
+const AddProductContent = () => {
   const {} = theme.useToken();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -250,6 +251,14 @@ const AddProductPage = () => {
            */}
       </div>
     </div>
+  );
+};
+
+const AddProductPage = () => {
+  return (
+    <Suspense fallback={<div style={{ padding: 24 }}>Loading...</div>}>
+      <AddProductContent />
+    </Suspense>
   );
 };
 
