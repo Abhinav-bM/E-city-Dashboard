@@ -38,7 +38,14 @@ http.interceptors.request.use(
 
 // Response Interceptor
 http.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    // If the response is a blob (like PDF download), return the data directly
+    // but DON'T extract further if it's already a Blob
+    if (response.config.responseType === "blob") {
+      return response.data;
+    }
+    return response.data;
+  },
   async (error) => {
     const originalRequest = error.config;
 

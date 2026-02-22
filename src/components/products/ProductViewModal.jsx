@@ -23,11 +23,9 @@ export default function ProductViewModal({ isOpen, onClose, productSlug }) {
     setLoading(true);
     setError(null);
     try {
-      // httpservice interceptor already returns response.data
       const response = await productService.getBySlug(productSlug);
       if (response.success) {
         setProduct(response.data);
-        // Reset selected image when new product loads
         setSelectedImage(0);
       } else {
         setError("Failed to load product details");
@@ -38,6 +36,20 @@ export default function ProductViewModal({ isOpen, onClose, productSlug }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Build merged image list: variant images first, then common images (de-duped)
+  const getMergedImages = (product) => {
+    const toUrl = (img) => (typeof img === "string" ? img : img?.url);
+    const variantImgs = (product?.currentVariant?.images || [])
+      .map(toUrl)
+      .filter(Boolean);
+    const commonImgs = (product?.baseProduct?.images || [])
+      .map(toUrl)
+      .filter(Boolean);
+    const seen = new Set(variantImgs);
+    const extra = commonImgs.filter((u) => !seen.has(u));
+    return [...variantImgs, ...extra];
   };
 
   // Helper to format currency
@@ -95,45 +107,49 @@ export default function ProductViewModal({ isOpen, onClose, productSlug }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-2">
             {/* Left: Images */}
             <div className="space-y-3">
-              <div className="aspect-square bg-slate-50 dark:bg-slate-800 rounded-lg overflow-hidden flex items-center justify-center border border-slate-200 dark:border-slate-700 relative group">
-                {product.currentVariant?.images &&
-                product.currentVariant.images.length > 0 ? (
-                  <img
-                    src={
-                      product.currentVariant.images[selectedImage]?.url ||
-                      product.currentVariant.images[selectedImage]
-                    }
-                    alt={product.currentVariant.title}
-                    className="w-full h-full object-contain p-4 transition-transform duration-300 group-hover:scale-105"
-                  />
-                ) : (
-                  <Package
-                    size={48}
-                    className="text-slate-300 dark:text-slate-600"
-                  />
-                )}
-              </div>
-              {product.currentVariant?.images?.length > 1 && (
-                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
-                  {product.currentVariant.images.map((img, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setSelectedImage(idx)}
-                      className={`w-14 h-14 rounded-md border-2 overflow-hidden shrink-0 transition-all ${
-                        selectedImage === idx
-                          ? "border-primary ring-1 ring-primary/20"
-                          : "border-transparent opacity-60 hover:opacity-100 bg-slate-50 dark:bg-slate-800"
-                      }`}
-                    >
-                      <img
-                        src={img?.url || img}
-                        alt={`Thumbnail ${idx}`}
-                        className="w-full h-full object-contain p-1"
-                      />
-                    </button>
-                  ))}
-                </div>
-              )}
+              {(() => {
+                const allImages = getMergedImages(product);
+                const currentImg = allImages[selectedImage];
+                return (
+                  <>
+                    <div className="aspect-square bg-slate-50 dark:bg-slate-800 rounded-lg overflow-hidden flex items-center justify-center border border-slate-200 dark:border-slate-700 relative group">
+                      {currentImg ? (
+                        <img
+                          src={currentImg}
+                          alt={product.currentVariant?.title}
+                          className="w-full h-full object-contain p-4 transition-transform duration-300 group-hover:scale-105"
+                        />
+                      ) : (
+                        <Package
+                          size={48}
+                          className="text-slate-300 dark:text-slate-600"
+                        />
+                      )}
+                    </div>
+                    {allImages.length > 1 && (
+                      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                        {allImages.map((img, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setSelectedImage(idx)}
+                            className={`w-14 h-14 rounded-md border-2 overflow-hidden shrink-0 transition-all ${
+                              selectedImage === idx
+                                ? "border-primary ring-1 ring-primary/20"
+                                : "border-transparent opacity-60 hover:opacity-100 bg-slate-50 dark:bg-slate-800"
+                            }`}
+                          >
+                            <img
+                              src={img}
+                              alt={`Thumbnail ${idx}`}
+                              className="w-full h-full object-contain p-1"
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             {/* Right: Details */}

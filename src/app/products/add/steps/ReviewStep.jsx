@@ -11,9 +11,14 @@ import {
   InputNumber,
   message,
   Space,
-  Badge,
+  Upload,
 } from "antd";
-import { PlusCircleOutlined, DeleteOutlined } from "@ant-design/icons";
+import {
+  PlusCircleOutlined,
+  DeleteOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
+import uploadService from "@/services/uploadService";
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -52,10 +57,33 @@ const ReviewStep = ({ data, updateData, submit }) => {
 
       const newVariants = [...data.variants, newUniqueVariant];
       updateData({ ...data, variants: newVariants });
-
       setIsModalVisible(false);
       message.success("Added unique unit!");
     });
+  };
+
+  const handleVariantImageUpload = async (file, record) => {
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      const res = await uploadService.uploadImage(formData);
+
+      if (res && res.url) {
+        const url = res.url;
+        const newVariants = [...data.variants];
+        const index = newVariants.findIndex((item) => item.key === record.key);
+        if (index > -1) {
+          const currentImages = newVariants[index].images || [];
+          newVariants[index].images = [...currentImages, { url }];
+          updateData({ ...data, variants: newVariants });
+          message.success("Image uploaded!");
+        }
+      }
+    } catch (error) {
+      console.error(error);
+      message.error("Upload failed.");
+    }
+    return false; // Prevent default upload behavior
   };
 
   const handleDelete = (key) => {
@@ -84,6 +112,37 @@ const ReviewStep = ({ data, updateData, submit }) => {
             <Tag key={key}>{value}</Tag>
           ))}
         </>
+      ),
+    },
+    {
+      title: "Images",
+      key: "images",
+      render: (_, record) => (
+        <Space direction="vertical">
+          <Space wrap>
+            {(record.images || []).map((img, idx) => (
+              <img
+                key={idx}
+                src={img.url}
+                alt="variant"
+                style={{
+                  width: 30,
+                  height: 30,
+                  objectFit: "cover",
+                  borderRadius: 4,
+                }}
+              />
+            ))}
+          </Space>
+          <Upload
+            beforeUpload={(file) => handleVariantImageUpload(file, record)}
+            showUploadList={false}
+          >
+            <Button size="small" icon={<UploadOutlined />}>
+              Add Line
+            </Button>
+          </Upload>
+        </Space>
       ),
     },
     {
@@ -170,6 +229,57 @@ const ReviewStep = ({ data, updateData, submit }) => {
               <Option value="Refurbished">Refurbished</Option>
               <Option value="Used">Used</Option>
             </Select>
+          </Form.Item>
+
+          <Form.Item label="Identity" style={{ marginBottom: 0 }}>
+            <Space
+              display="flex"
+              style={{ display: "flex", marginBottom: 24 }}
+              align="baseline"
+            >
+              <Form.Item
+                name="imei"
+                rules={[{ required: true, message: "IMEI Required" }]}
+                style={{ width: 200 }}
+              >
+                <Input placeholder="IMEI" />
+              </Form.Item>
+              <Form.Item name="serialNumber" style={{ width: 200 }}>
+                <Input placeholder="Serial (Optional)" />
+              </Form.Item>
+            </Space>
+          </Form.Item>
+
+          <Form.Item label="Unique Photos">
+            <Upload
+              customRequest={async ({ file, onSuccess, onError }) => {
+                try {
+                  const formData = new FormData();
+                  formData.append("image", file);
+                  const res = await uploadService.uploadImage(formData);
+
+                  if (res && res.url) {
+                    onSuccess({ url: res.url }, file);
+                  } else {
+                    throw new Error("Upload failed");
+                  }
+                } catch (err) {
+                  onError(err);
+                }
+              }}
+              listType="picture-card"
+              fileList={form.getFieldValue("uniqueImages") || []}
+              onChange={({ fileList }) => {
+                // Filter to only successful uploads
+                // We need to manually manage this form field value usually
+                form.setFieldsValue({ uniqueImages: fileList });
+              }}
+            >
+              <div>
+                <PlusCircleOutlined />
+                <div style={{ marginTop: 8 }}>Upload</div>
+              </div>
+            </Upload>
           </Form.Item>
 
           <Form.Item

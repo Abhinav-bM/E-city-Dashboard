@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import AdminLayout from "@/components/layout/AdminLayout";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
@@ -10,6 +10,7 @@ import categoryService from "@/services/categoryService";
 import brandService from "@/services/brandService";
 import productService from "@/services/productService";
 import uploadService from "@/services/uploadService";
+import ImageCropModal from "@/components/ui/ImageCropModal";
 import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -21,6 +22,9 @@ import {
   Package,
   FileText,
   Image as ImageIcon,
+  Star,
+  Crop,
+  Plus,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { SectionLoader, Spinner } from "@/components/ui/Loader";
@@ -34,6 +38,13 @@ function AddProductContent() {
   const [productId, setProductId] = useState(null);
   const [uploadingImages, setUploadingImages] = useState(false);
 
+  // Image crop modal state
+  const [cropModal, setCropModal] = useState(null); // { src, onConfirm }
+
+  // Upload-in-progress tracking for Step 3
+  const [uploadingCommon, setUploadingCommon] = useState(false);
+  const [uploadingVariantIdx, setUploadingVariantIdx] = useState(null); // index of variant being uploaded
+
   // -- Global Form State --
   const [formData, setFormData] = useState({
     // Step 1: Essentials
@@ -42,13 +53,14 @@ function AddProductContent() {
     category: "",
     description: "",
     condition: "New", // New | Refurbished
+    // images now stored as { url: string, isMain: boolean }[]
     images: [],
     isFeatured: false,
     isNewArrival: false,
 
     // Step 2: Variants & Inventory
     options: [], // e.g. [{name: 'Color', values: ['Red', 'Blue']}]
-    variants: [], // Generated variant objects
+    variants: [], // Generated variant objects — each has images: [{url, isMain}][]
     specifications: [], // e.g. [{ group: 'Display', items: [{ key: 'Resolution', value: '1080p' }] }]
 
     // Step 2 (Alternative for Used): Unique Item Details
@@ -59,9 +71,6 @@ function AddProductContent() {
     sellingPrice: "",
     actualPrice: "",
     sku: "",
-
-    // Step 3: Review
-    // ... calculated derived state
   });
 
   // Metadata
@@ -131,13 +140,18 @@ function AddProductContent() {
                 : product.baseProduct?.category || "",
             description: product.baseProduct?.description || "",
             condition: product.currentVariant?.condition || "New",
-            images:
-              (product.currentVariant?.images?.length > 0
-                ? product.currentVariant.images
-                : product.baseProduct?.images || []
+            // Load common images — mark as already uploaded (no re-upload needed)
+            images: (product.baseProduct?.images || [])
+              .map((img) =>
+                typeof img === "object" && img.url
+                  ? {
+                      url: img.url,
+                      isMain: img.isMain || false,
+                      uploaded: true,
+                    }
+                  : { url: img, isMain: false, uploaded: true },
               )
-                .map((img) => (typeof img === "object" ? img.url : img))
-                .filter(Boolean) || [],
+              .filter((img) => Boolean(img.url)),
             isFeatured: product.baseProduct?.isFeatured || false,
             isNewArrival: product.baseProduct?.isNewArrival || false,
             specifications: product.baseProduct?.specifications || [],
@@ -151,6 +165,18 @@ function AddProductContent() {
                 actualPrice: v.actualPrice || v.sellingPrice || 0,
                 stock: v.stock || 0,
                 sku: v.sku || "",
+                // Load variant images — mark as already uploaded
+                images: (v.images || [])
+                  .map((img) =>
+                    typeof img === "object" && img.url
+                      ? {
+                          url: img.url,
+                          isMain: img.isMain || false,
+                          uploaded: true,
+                        }
+                      : { url: img, isMain: false, uploaded: true },
+                  )
+                  .filter((img) => Boolean(img.url)),
               })) || [],
 
             // Prefill used item details if applicable
@@ -218,62 +244,163 @@ function AddProductContent() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleImageUpload = async (e) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-
-    setUploadingImages(true);
-    const toastId = toast.loading(`Uploading ${files.length} image(s)...`);
-
-    const uploadedUrls = [];
-    let successCount = 0;
-    let failCount = 0;
-
-    for (const file of files) {
-      const form = new FormData();
-      form.append("image", file);
-      try {
-        const res = await uploadService.uploadImage(form);
-        if (res.success) {
-          uploadedUrls.push(res.data.url);
-          successCount++;
-        } else {
-          failCount++;
-        }
-      } catch (err) {
-        console.error("Upload failed for file", file.name, err);
-        failCount++;
-      }
+  // -- Helper: upload a blob, return { url } or null --
+  const uploadBlob = async (blob, filename = "image.jpg") => {
+    const fd = new FormData();
+    fd.append("image", blob, filename);
+    try {
+      const res = await uploadService.uploadImage(fd);
+      if (res && res.data && res.data.url) return { url: res.data.url };
+      return null;
+    } catch {
+      return null;
     }
-
-    setFormData((prev) => ({
-      ...prev,
-      images: [...prev.images, ...uploadedUrls],
-    }));
-
-    setUploadingImages(false);
-
-    if (successCount > 0 && failCount === 0) {
-      toast.success(`${successCount} image(s) uploaded successfully!`, {
-        id: toastId,
-      });
-    } else if (successCount > 0 && failCount > 0) {
-      toast.success(`${successCount} uploaded, ${failCount} failed`, {
-        id: toastId,
-      });
-    } else {
-      toast.error("Failed to upload images", { id: toastId });
-    }
-
-    // Reset input
-    e.target.value = "";
   };
 
-  const removeImage = (index) => {
+  // -- Common image select: instant local preview, no upload yet --
+  const handleCommonImageSelect = (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (!files.length) return;
+    files.forEach((file) => {
+      const localUrl = URL.createObjectURL(file);
+      setFormData((prev) => ({
+        ...prev,
+        images: [
+          ...prev.images,
+          {
+            url: localUrl,
+            blob: file,
+            isMain: prev.images.length === 0,
+            uploaded: false,
+          },
+        ],
+      }));
+    });
+  };
+
+  const removeCommonImage = (index) => {
+    setFormData((prev) => {
+      const img = prev.images[index];
+      // Revoke object URL if local to free memory
+      if (img && !img.uploaded && img.url?.startsWith("blob:")) {
+        URL.revokeObjectURL(img.url);
+      }
+      const next = prev.images.filter((_, i) => i !== index);
+      if (img?.isMain && next.length > 0)
+        next[0] = { ...next[0], isMain: true };
+      return { ...prev, images: next };
+    });
+  };
+
+  const toggleCommonMain = (index) => {
     setFormData((prev) => ({
       ...prev,
-      images: prev.images.filter((_, i) => i !== index),
+      images: prev.images.map((img, i) => ({ ...img, isMain: i === index })),
     }));
+  };
+
+  // -- Edit/crop an already-added common image --
+  const openCommonImageCrop = (index) => {
+    const img = formData.images[index];
+    const src = img.url; // blob: URL (local) or remote URL
+    setCropModal({
+      src,
+      onConfirm: (blob) => {
+        const newLocalUrl = URL.createObjectURL(blob);
+        // Revoke old local URL if it was a blob
+        if (!img.uploaded && img.url?.startsWith("blob:"))
+          URL.revokeObjectURL(img.url);
+        setFormData((prev) => {
+          const next = [...prev.images];
+          next[index] = {
+            ...next[index],
+            url: newLocalUrl,
+            blob,
+            uploaded: false,
+          };
+          return { ...prev, images: next };
+        });
+        setCropModal(null);
+      },
+    });
+  };
+
+  // -- Variant image select: instant local preview, no upload yet --
+  const handleVariantImageSelect = (variantIdx, e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (!files.length) return;
+    files.forEach((file) => {
+      const localUrl = URL.createObjectURL(file);
+      setFormData((prev) => {
+        const newVars = [...prev.variants];
+        const existingImages = newVars[variantIdx].images || [];
+        const isFirst = existingImages.length === 0;
+        newVars[variantIdx] = {
+          ...newVars[variantIdx],
+          images: [
+            ...existingImages,
+            { url: localUrl, blob: file, isMain: isFirst, uploaded: false },
+          ],
+        };
+        return { ...prev, variants: newVars };
+      });
+    });
+  };
+
+  // -- Edit/crop an already-added variant image --
+  const openVariantImageCrop = (variantIdx, imgIdx) => {
+    const img = formData.variants[variantIdx].images[imgIdx];
+    setCropModal({
+      src: img.url,
+      onConfirm: (blob) => {
+        const newLocalUrl = URL.createObjectURL(blob);
+        if (!img.uploaded && img.url?.startsWith("blob:"))
+          URL.revokeObjectURL(img.url);
+        setFormData((prev) => {
+          const newVars = [...prev.variants];
+          const imgs = [...(newVars[variantIdx].images || [])];
+          imgs[imgIdx] = {
+            ...imgs[imgIdx],
+            url: newLocalUrl,
+            blob,
+            uploaded: false,
+          };
+          newVars[variantIdx] = { ...newVars[variantIdx], images: imgs };
+          return { ...prev, variants: newVars };
+        });
+        setCropModal(null);
+      },
+    });
+  };
+
+  const removeVariantImage = (variantIdx, imgIdx) => {
+    setFormData((prev) => {
+      const newVars = [...prev.variants];
+      const imgs = [...(newVars[variantIdx].images || [])];
+      const wasMain = imgs[imgIdx]?.isMain;
+      imgs.splice(imgIdx, 1);
+      if (wasMain && imgs.length > 0) imgs[0] = { ...imgs[0], isMain: true };
+      newVars[variantIdx] = { ...newVars[variantIdx], images: imgs };
+      return { ...prev, variants: newVars };
+    });
+    toast.success("Image removed", { icon: "🗑️" });
+  };
+
+  const toggleVariantMain = (variantIdx, imgIdx) => {
+    setFormData((prev) => {
+      const newVars = [...prev.variants];
+      // Set isMain=true on the selected image, false on all others (same as common images)
+      newVars[variantIdx] = {
+        ...newVars[variantIdx],
+        images: (newVars[variantIdx].images || []).map((img, i) => ({
+          ...img,
+          isMain: i === imgIdx,
+        })),
+      };
+      return { ...prev, variants: newVars };
+    });
   };
 
   const addSpecGroup = () => {
@@ -405,7 +532,8 @@ function AddProductContent() {
       {[
         { num: 1, label: "Basic Details" },
         { num: 2, label: "Variants & Stock" },
-        { num: 3, label: "Review" },
+        { num: 3, label: "Images" },
+        { num: 4, label: "Review" },
       ].map((step, idx) => {
         const isActive = currentStep === step.num;
         const isCompleted = currentStep > step.num;
@@ -413,7 +541,9 @@ function AddProductContent() {
         return (
           <div key={step.num} className="flex items-center">
             <div
-              className={`flex flex-col items-center relative z-10 mx-4 transition-all opacity-${isActive || isCompleted ? "100" : "50"}`}
+              className={`flex flex-col items-center relative z-10 mx-4 transition-all ${
+                isActive || isCompleted ? "opacity-100" : "opacity-50"
+              }`}
             >
               <div
                 className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-colors ${
@@ -427,13 +557,17 @@ function AddProductContent() {
                 {isCompleted ? <Check size={20} /> : step.num}
               </div>
               <span
-                className={`text-xs font-medium mt-2 whitespace-nowrap ${isActive ? "text-primary" : "text-slate-500 dark:text-slate-400"}`}
+                className={`text-xs font-medium mt-2 whitespace-nowrap ${
+                  isActive
+                    ? "text-primary"
+                    : "text-slate-500 dark:text-slate-400"
+                }`}
               >
                 {step.label}
               </span>
             </div>
             {/* Connector Line */}
-            {idx < 2 && (
+            {idx < 3 && (
               <div
                 className={`w-16 h-0.5 rounded transition-colors ${
                   isCompleted
@@ -454,187 +588,117 @@ function AddProductContent() {
   // or better, wrap the whole content if critical data is missing.
 
   const renderStep1 = () => (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-      <div className="xl:col-span-2 space-y-6">
-        {/* Condition / Workflow Toggle */}
-        <Card title="Inventory Type">
-          <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row gap-4 mb-2">
-            <label
-              className={`flex-1 cursor-pointer border-2 rounded-xl p-4 transition-all ${
-                formData.condition === "New"
-                  ? "border-primary bg-primary/5"
-                  : "border-transparent hover:bg-slate-100 dark:hover:bg-slate-800"
-              }`}
-            >
-              <input
-                type="radio"
-                name="condition"
-                value="New"
-                checked={formData.condition === "New"}
-                onChange={() => updateField("condition", "New")}
-                className="hidden"
-              />
-              <div className="flex items-center gap-3 mb-2">
-                <div
-                  className={`p-2 rounded-lg ${formData.condition === "New" ? "bg-primary text-white" : "bg-slate-200 dark:bg-slate-700 text-slate-500"}`}
-                >
-                  <Package size={20} />
-                </div>
-                <span className="font-bold text-slate-900 dark:text-white">
-                  New Condition
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                For bulk inventory items. Track stock by quantity (e.g. 50
-                units).
-              </p>
-            </label>
-
-            <label
-              className={`flex-1 cursor-pointer border-2 rounded-xl p-4 transition-all ${
-                formData.condition === "Refurbished"
-                  ? "border-amber-500 bg-amber-500/5"
-                  : "border-transparent hover:bg-slate-100 dark:hover:bg-slate-800"
-              }`}
-            >
-              <input
-                type="radio"
-                name="condition"
-                value="Refurbished"
-                checked={formData.condition === "Refurbished"}
-                onChange={() => updateField("condition", "Refurbished")}
-                className="hidden"
-              />
-              <div className="flex items-center gap-3 mb-2">
-                <div
-                  className={`p-2 rounded-lg ${formData.condition === "Refurbished" ? "bg-amber-500 text-white" : "bg-slate-200 dark:bg-slate-700 text-slate-500"}`}
-                >
-                  <Layers size={20} />
-                </div>
-                <span className="font-bold text-slate-900 dark:text-white">
-                  Refurbished / Used
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                For unique items. Track each unit individually by IMEI or Serial
-                Number.
-              </p>
-            </label>
-          </div>
-        </Card>
-
-        {/* Product Info */}
-        <Card title="Product Information" className="h-fit">
-          <div className="space-y-4">
-            <Input
-              label="Product Name"
-              placeholder="e.g. Wireless Noise Cancelling Headphones"
-              value={formData.title}
-              onChange={(e) => updateField("title", e.target.value)}
+    <div className="space-y-6">
+      {/* Condition / Workflow Toggle */}
+      <Card title="Inventory Type">
+        <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row gap-4 mb-2">
+          <label
+            className={`flex-1 cursor-pointer border-2 rounded-xl p-4 transition-all ${
+              formData.condition === "New"
+                ? "border-primary bg-primary/5"
+                : "border-transparent hover:bg-slate-100 dark:hover:bg-slate-800"
+            }`}
+          >
+            <input
+              type="radio"
+              name="condition"
+              value="New"
+              checked={formData.condition === "New"}
+              onChange={() => updateField("condition", "New")}
+              className="hidden"
             />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <SearchableSelect
-                label="Brand"
-                placeholder="Select or create brand..."
-                options={brands}
-                value={formData.brand}
-                onChange={(val) => updateField("brand", val)}
-                onCreate={handleCreateBrand}
-              />
-              <SearchableSelect
-                label="Category"
-                placeholder="Select category..."
-                options={categories}
-                value={formData.category}
-                onChange={(val) => updateField("category", val)}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                Description
-              </label>
-              <textarea
-                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-3 min-h-[150px] text-sm focus:ring-2 focus:ring-primary/50 outline-none text-slate-900 dark:text-white"
-                placeholder="Describe your product..."
-                value={formData.description}
-                onChange={(e) => updateField("description", e.target.value)}
-              />
-            </div>
-          </div>
-        </Card>
-
-        {/* Detailed Specifications */}
-        {renderSpecifications()}
-      </div>
-
-      <div className="xl:col-span-1">
-        <Card title="Media Gallery">
-          <div className="flex flex-col h-full">
-            <div
-              className={`border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-6 flex flex-col items-center justify-center text-center transition-colors relative group ${uploadingImages ? "opacity-60 cursor-not-allowed" : "hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"}`}
-            >
-              <input
-                type="file"
-                multiple
-                accept="image/*"
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                onChange={handleImageUpload}
-                disabled={uploadingImages}
-              />
-              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-primary mb-3 group-hover:scale-110 transition-transform pointer-events-none">
-                {uploadingImages ? (
-                  <Spinner className="animate-spin" size={24} />
-                ) : (
-                  <Upload size={24} />
-                )}
+            <div className="flex items-center gap-3 mb-2">
+              <div
+                className={`p-2 rounded-lg ${formData.condition === "New" ? "bg-primary text-white" : "bg-slate-200 dark:bg-slate-700 text-slate-500"}`}
+              >
+                <Package size={20} />
               </div>
-              <p className="text-sm font-medium text-slate-900 dark:text-white mb-1 pointer-events-none">
-                {uploadingImages
-                  ? "Uploading..."
-                  : "Click to upload or drag and drop"}
-              </p>
-              <p className="text-xs text-slate-500 pointer-events-none">
-                SVG, PNG, JPG or GIF (max. 5MB)
-              </p>
+              <span className="font-bold text-slate-900 dark:text-white">
+                New Condition
+              </span>
             </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              For bulk inventory items. Track stock by quantity (e.g. 50 units).
+            </p>
+          </label>
 
-            {formData.images.length > 0 && (
-              <div className="mt-6 space-y-3">
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                  Uploaded Images ({formData.images.length})
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  {formData.images.map((url, idx) => (
-                    <div
-                      key={idx}
-                      className="aspect-square rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden relative group"
-                    >
-                      <img
-                        src={url}
-                        alt={`Upload ${idx}`}
-                        className="w-full h-full object-cover"
-                      />
-                      <button
-                        onClick={() => removeImage(idx)}
-                        className="absolute top-1 right-1 p-1 bg-red-500 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity transform hover:scale-110"
-                      >
-                        <X size={12} />
-                      </button>
-                      {idx === 0 && (
-                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] py-0.5 text-center">
-                          Main
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+          <label
+            className={`flex-1 cursor-pointer border-2 rounded-xl p-4 transition-all ${
+              formData.condition === "Refurbished"
+                ? "border-amber-500 bg-amber-500/5"
+                : "border-transparent hover:bg-slate-100 dark:hover:bg-slate-800"
+            }`}
+          >
+            <input
+              type="radio"
+              name="condition"
+              value="Refurbished"
+              checked={formData.condition === "Refurbished"}
+              onChange={() => updateField("condition", "Refurbished")}
+              className="hidden"
+            />
+            <div className="flex items-center gap-3 mb-2">
+              <div
+                className={`p-2 rounded-lg ${formData.condition === "Refurbished" ? "bg-amber-500 text-white" : "bg-slate-200 dark:bg-slate-700 text-slate-500"}`}
+              >
+                <Layers size={20} />
               </div>
-            )}
+              <span className="font-bold text-slate-900 dark:text-white">
+                Refurbished / Used
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              For unique items. Track each unit individually by IMEI or Serial
+              Number.
+            </p>
+          </label>
+        </div>
+      </Card>
+
+      {/* Product Info */}
+      <Card title="Product Information" className="h-fit">
+        <div className="space-y-4">
+          <Input
+            label="Product Name"
+            placeholder="e.g. Wireless Noise Cancelling Headphones"
+            value={formData.title}
+            onChange={(e) => updateField("title", e.target.value)}
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <SearchableSelect
+              label="Brand"
+              placeholder="Select or create brand..."
+              options={brands}
+              value={formData.brand}
+              onChange={(val) => updateField("brand", val)}
+              onCreate={handleCreateBrand}
+            />
+            <SearchableSelect
+              label="Category"
+              placeholder="Select category..."
+              options={categories}
+              value={formData.category}
+              onChange={(val) => updateField("category", val)}
+            />
           </div>
-        </Card>
-      </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              Description
+            </label>
+            <textarea
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg p-3 min-h-[150px] text-sm focus:ring-2 focus:ring-primary/50 outline-none text-slate-900 dark:text-white"
+              placeholder="Describe your product..."
+              value={formData.description}
+              onChange={(e) => updateField("description", e.target.value)}
+            />
+          </div>
+        </div>
+      </Card>
+
+      {/* Detailed Specifications */}
+      {renderSpecifications()}
     </div>
   );
 
@@ -819,78 +883,82 @@ function AddProductContent() {
             </div>
           </Card>
 
-          {formData.variants.length > 0 && (
-            <Card title="Variants Preview">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 text-slate-500">
-                      <th className="p-3 font-medium">Variant</th>
-                      <th className="p-3 font-medium w-32">Price ($)</th>
-                      <th className="p-3 font-medium w-32">MRP ($)</th>
-                      <th className="p-3 font-medium w-24">Stock</th>
-                      <th className="p-3 font-medium w-48">SKU</th>
+          <Card title="Variants Preview">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 text-slate-500">
+                    <th className="p-3 font-medium">Variant</th>
+                    <th className="p-3 font-medium w-32">Price ($)</th>
+                    <th className="p-3 font-medium w-32">MRP ($)</th>
+                    <th className="p-3 font-medium w-24">Stock</th>
+                    <th className="p-3 font-medium w-48">SKU</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {formData.variants.map((v, i) => (
+                    <tr
+                      key={i}
+                      className="group hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                    >
+                      <td className="p-3">
+                        <div className="font-medium text-slate-900 dark:text-white">
+                          {Object.values(v.attributes).join(" / ")}
+                        </div>
+                        {v.images && v.images.length > 0 && (
+                          <span className="text-[10px] text-primary mt-0.5 block">
+                            {v.images.length} image
+                            {v.images.length > 1 ? "s" : ""} ✓
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <input
+                          type="number"
+                          className="w-full bg-transparent border border-slate-300 dark:border-slate-700 rounded px-2 py-1 focus:border-primary outline-none"
+                          value={v.sellingPrice}
+                          onChange={(e) =>
+                            updateVariant(i, "sellingPrice", e.target.value)
+                          }
+                        />
+                      </td>
+                      <td className="p-3">
+                        <input
+                          type="number"
+                          className="w-full bg-transparent border border-slate-300 dark:border-slate-700 rounded px-2 py-1 focus:border-primary outline-none"
+                          value={v.actualPrice}
+                          onChange={(e) =>
+                            updateVariant(i, "actualPrice", e.target.value)
+                          }
+                        />
+                      </td>
+                      <td className="p-3">
+                        <input
+                          type="number"
+                          className="w-full bg-transparent border border-slate-300 dark:border-slate-700 rounded px-2 py-1 focus:border-primary outline-none"
+                          value={v.stock}
+                          onChange={(e) =>
+                            updateVariant(i, "stock", e.target.value)
+                          }
+                        />
+                      </td>
+                      <td className="p-3">
+                        <input
+                          type="text"
+                          className="w-full bg-transparent border border-slate-300 dark:border-slate-700 rounded px-2 py-1 focus:border-primary outline-none font-mono text-xs"
+                          value={v.sku}
+                          placeholder="Auto-gen if empty"
+                          onChange={(e) =>
+                            updateVariant(i, "sku", e.target.value)
+                          }
+                        />
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {formData.variants.map((v, i) => (
-                      <tr
-                        key={i}
-                        className="group hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                      >
-                        <td className="p-3">
-                          <div className="font-medium text-slate-900 dark:text-white">
-                            {Object.values(v.attributes).join(" / ")}
-                          </div>
-                        </td>
-                        <td className="p-3">
-                          <input
-                            type="number"
-                            className="w-full bg-transparent border border-slate-300 dark:border-slate-700 rounded px-2 py-1 focus:border-primary outline-none"
-                            value={v.sellingPrice}
-                            onChange={(e) =>
-                              updateVariant(i, "sellingPrice", e.target.value)
-                            }
-                          />
-                        </td>
-                        <td className="p-3">
-                          <input
-                            type="number"
-                            className="w-full bg-transparent border border-slate-300 dark:border-slate-700 rounded px-2 py-1 focus:border-primary outline-none"
-                            value={v.actualPrice}
-                            onChange={(e) =>
-                              updateVariant(i, "actualPrice", e.target.value)
-                            }
-                          />
-                        </td>
-                        <td className="p-3">
-                          <input
-                            type="number"
-                            className="w-full bg-transparent border border-slate-300 dark:border-slate-700 rounded px-2 py-1 focus:border-primary outline-none"
-                            value={v.stock}
-                            onChange={(e) =>
-                              updateVariant(i, "stock", e.target.value)
-                            }
-                          />
-                        </td>
-                        <td className="p-3">
-                          <input
-                            type="text"
-                            className="w-full bg-transparent border border-slate-300 dark:border-slate-700 rounded px-2 py-1 focus:border-primary outline-none font-mono text-xs"
-                            value={v.sku}
-                            placeholder="Auto-gen if empty"
-                            onChange={(e) =>
-                              updateVariant(i, "sku", e.target.value)
-                            }
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          )}
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         </div>
       );
     }
@@ -987,8 +1055,308 @@ function AddProductContent() {
     );
   };
 
-  /* -- Step 3: Review -- */
-  const renderStep3 = () => (
+  /* -- Step 3: Images -- */
+  const renderStep3 = () => {
+    // Reusable upload-zone component
+    const UploadZone = ({ onSelect, uploading, label }) => (
+      <label
+        className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-xl p-6 cursor-pointer transition-all ${
+          uploading
+            ? "opacity-60 cursor-not-allowed border-slate-300 dark:border-slate-700"
+            : "border-slate-300 dark:border-slate-700 hover:border-primary hover:bg-primary/5 dark:hover:bg-primary/5"
+        }`}
+      >
+        <input
+          type="file"
+          multiple
+          accept="image/*"
+          className="hidden"
+          onChange={onSelect}
+          disabled={uploading}
+        />
+        <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+          {uploading ? (
+            <Spinner size={20} className="animate-spin" />
+          ) : (
+            <Upload size={20} />
+          )}
+        </div>
+        <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+          {uploading ? "Uploading..." : label || "Click or drag to upload"}
+        </p>
+        <p className="text-xs text-slate-400">
+          PNG, JPG, WEBP — Optional crop before upload
+        </p>
+      </label>
+    );
+
+    // Common image thumbnail: main toggle + crop/edit + remove
+    const ImageThumb = ({ img, index, onToggleMain, onCrop, onRemove }) => (
+      <div
+        className={`relative group rounded-xl overflow-hidden border-2 aspect-square transition-all ${
+          img.isMain
+            ? "border-amber-400 shadow-lg shadow-amber-100 dark:shadow-amber-900/20"
+            : "border-slate-200 dark:border-slate-700"
+        }`}
+      >
+        <img src={img.url} alt="" className="w-full h-full object-cover" />
+        {/* Local (unuploaded) indicator */}
+        {!img.uploaded && (
+          <div className="absolute bottom-1 right-1 bg-slate-900/70 text-[8px] text-slate-300 px-1 py-0.5 rounded">
+            local
+          </div>
+        )}
+        {/* Main badge */}
+        {img.isMain && (
+          <div className="absolute top-1.5 left-1.5 bg-amber-400 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+            <Star size={8} fill="white" /> MAIN
+          </div>
+        )}
+        {/* Hover overlay */}
+        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+          {!img.isMain && (
+            <button
+              onClick={() => onToggleMain(index)}
+              title="Set as Main"
+              className="bg-amber-400 hover:bg-amber-500 text-white rounded-full p-1.5 transition-all"
+            >
+              <Star size={12} />
+            </button>
+          )}
+          <button
+            onClick={() => onCrop(index)}
+            title="Crop / Edit"
+            className="bg-indigo-500 hover:bg-indigo-600 text-white rounded-full p-1.5 transition-all"
+          >
+            <Crop size={12} />
+          </button>
+          <button
+            onClick={() => onRemove(index)}
+            title="Remove"
+            className="bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 transition-all"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      </div>
+    );
+
+    // Variant image thumbnail — 1ST toggle + crop/edit + remove
+    const VariantImageThumb = ({
+      img,
+      index,
+      isFirst,
+      onSetFirst,
+      onCrop,
+      onRemove,
+    }) => (
+      <div
+        className={`relative group rounded-xl overflow-hidden border-2 aspect-square transition-all ${
+          isFirst
+            ? "border-primary shadow shadow-primary/20"
+            : "border-slate-200 dark:border-slate-700"
+        }`}
+      >
+        <img src={img.url} alt="" className="w-full h-full object-cover" />
+        {!img.uploaded && (
+          <div className="absolute bottom-1 right-1 bg-slate-900/70 text-[8px] text-slate-300 px-1 py-0.5 rounded">
+            local
+          </div>
+        )}
+        {isFirst && (
+          <div className="absolute top-1.5 left-1.5 bg-primary text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+            <Star size={8} fill="white" /> 1ST
+          </div>
+        )}
+        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+          {!isFirst && (
+            <button
+              onClick={() => onSetFirst(index)}
+              title="Show this image first"
+              className="bg-primary hover:bg-primary/80 text-white rounded-full p-1.5 transition-all"
+            >
+              <Star size={12} />
+            </button>
+          )}
+          <button
+            onClick={() => onCrop(index)}
+            title="Crop / Edit"
+            className="bg-indigo-500 hover:bg-indigo-600 text-white rounded-full p-1.5 transition-all"
+          >
+            <Crop size={12} />
+          </button>
+          <button
+            onClick={() => onRemove(index)}
+            title="Remove"
+            className="bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 transition-all"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      </div>
+    );
+
+    return (
+      <div className="space-y-8">
+        {/* Section 1: Common Product Images */}
+        <Card title="Common Product Images" icon={<ImageIcon size={18} />}>
+          <div className="space-y-4">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              These images are shared across <strong>all variants</strong>.
+              Upload your main product photography here (e.g. studio shots,
+              lifestyle photos).
+            </p>
+            <UploadZone
+              onSelect={handleCommonImageSelect}
+              uploading={uploadingCommon}
+              label="Upload Common Images"
+            />
+            {formData.images.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">
+                  {formData.images.length} Image
+                  {formData.images.length > 1 ? "s" : ""} · Click ☆ to set as
+                  Main
+                </p>
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+                  {formData.images.map((img, idx) => (
+                    <ImageThumb
+                      key={idx}
+                      img={img}
+                      index={idx}
+                      onToggleMain={toggleCommonMain}
+                      onCrop={openCommonImageCrop}
+                      onRemove={removeCommonImage}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {/* Section 2: Variant-Specific Images (New products only) */}
+        {formData.condition === "New" && formData.variants.length > 0 && (
+          <Card title="Variant-Specific Images" icon={<Layers size={18} />}>
+            <div className="space-y-6">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Optionally upload images{" "}
+                <strong>specific to each variant</strong> (e.g. different colour
+                photos). If left empty, the common images above will be used.
+              </p>
+              {formData.variants.map((v, varIdx) => {
+                const variantLabel = Object.values(v.attributes).join(" / ");
+                const variantImgs = v.images || [];
+                const isUploading = uploadingVariantIdx === varIdx;
+
+                return (
+                  <div
+                    key={varIdx}
+                    className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden"
+                  >
+                    {/* Variant header */}
+                    <div className="flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-700">
+                      <div className="flex items-center gap-3">
+                        {/* Preview of first image or placeholder */}
+                        <div className="w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-600 overflow-hidden bg-slate-200 dark:bg-slate-800 shrink-0">
+                          {variantImgs.length > 0 ? (
+                            <img
+                              src={
+                                variantImgs.find((i) => i.isMain)?.url ||
+                                variantImgs[0].url
+                              }
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                          ) : formData.images.length > 0 ? (
+                            <img
+                              src={
+                                formData.images.find((i) => i.isMain)?.url ||
+                                formData.images[0]?.url
+                              }
+                              alt=""
+                              className="w-full h-full object-cover opacity-40"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <ImageIcon size={12} className="text-slate-400" />
+                            </div>
+                          )}
+                        </div>
+                        <span className="font-semibold text-slate-900 dark:text-white text-sm">
+                          {variantLabel}
+                        </span>
+                        {variantImgs.length === 0 && (
+                          <span className="text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+                            Inherits common images
+                          </span>
+                        )}
+                        {variantImgs.length > 0 && (
+                          <span className="text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                            {variantImgs.length} custom image
+                            {variantImgs.length > 1 ? "s" : ""}
+                          </span>
+                        )}
+                      </div>
+                      <label
+                        className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg cursor-pointer transition-all ${
+                          isUploading
+                            ? "opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-800 text-slate-400"
+                            : "bg-primary/10 text-primary hover:bg-primary/20"
+                        }`}
+                      >
+                        <Plus size={12} /> Add Image
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => handleVariantImageSelect(varIdx, e)}
+                          disabled={isUploading}
+                        />
+                      </label>
+                    </div>
+
+                    {/* Variant images grid */}
+                    {variantImgs.length > 0 && (
+                      <div className="p-4">
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+                          {variantImgs.map((img, imgIdx) => (
+                            <VariantImageThumb
+                              key={imgIdx}
+                              img={img}
+                              index={imgIdx}
+                              isFirst={!!img.isMain}
+                              onSetFirst={(i) => toggleVariantMain(varIdx, i)}
+                              onCrop={(i) => openVariantImageCrop(varIdx, i)}
+                              onRemove={(i) => removeVariantImage(varIdx, i)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
+
+        {formData.images.length === 0 && (
+          <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/50 p-4 rounded-lg flex gap-3 text-amber-800 dark:text-amber-200">
+            <AlertCircle size={20} className="shrink-0 mt-0.5" />
+            <p className="text-sm">
+              No common images uploaded yet. You can proceed, but adding at
+              least one image is recommended for better visibility.
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  /* -- Step 4: Review -- */
+  const renderStep4 = () => (
     <div className="space-y-6">
       <Card title="Review & Publish" icon={<FileText size={20} />}>
         <div className="flex flex-col gap-6">
@@ -996,7 +1364,10 @@ function AddProductContent() {
             <div className="w-20 h-20 bg-slate-200 dark:bg-slate-800 rounded-md overflow-hidden shrink-0">
               {formData.images[0] ? (
                 <img
-                  src={formData.images[0]}
+                  src={
+                    formData.images.find((i) => i.isMain)?.url ||
+                    formData.images[0]?.url
+                  }
                   className="w-full h-full object-cover"
                 />
               ) : (
@@ -1034,6 +1405,7 @@ function AddProductContent() {
                   <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
                     <tr>
                       <th className="p-3">Variant</th>
+                      <th className="p-3">Image</th>
                       <th className="p-3">Price</th>
                       <th className="p-3">Stock</th>
                       <th className="p-3">SKU</th>
@@ -1047,6 +1419,17 @@ function AddProductContent() {
                       >
                         <td className="p-3 font-medium">
                           {Object.values(v.attributes).join(" / ")}
+                        </td>
+                        <td className="p-3">
+                          {v.images && v.images.length > 0 ? (
+                            <img
+                              src={v.images[0].url}
+                              alt="Var"
+                              className="w-8 h-8 rounded border border-slate-200 dark:border-slate-700 object-cover"
+                            />
+                          ) : (
+                            <span className="text-slate-400 text-xs">-</span>
+                          )}
                         </td>
                         <td className="p-3">${v.sellingPrice}</td>
                         <td className="p-3">{v.stock || 0}</td>
@@ -1120,12 +1503,54 @@ function AddProductContent() {
     </div>
   );
 
+  // -- Batch-upload all pending local images before publish --
+  const uploadPendingImages = async (images) => {
+    return Promise.all(
+      images.map(async (img) => {
+        if (img.uploaded) return img; // already on Cloudinary
+        const blob =
+          img.blob instanceof Blob
+            ? img.blob
+            : await fetch(img.url).then((r) => r.blob());
+        const result = await uploadBlob(blob);
+        if (result) {
+          // Revoke the old local blob URL
+          if (img.url?.startsWith("blob:")) URL.revokeObjectURL(img.url);
+          return { url: result.url, isMain: img.isMain, uploaded: true };
+        }
+        return img; // keep as-is if upload failed (handleSubmit will catch)
+      }),
+    );
+  };
+
   const handleSubmit = async () => {
     setLoading(true);
     const toastId = toast.loading(
       isEditMode ? "Updating product..." : "Publishing product...",
     );
     try {
+      // ── Step 1: Upload all local images to Cloudinary in parallel ──
+      toast.loading("Uploading images...", { id: toastId });
+      const uploadedCommon = await uploadPendingImages(formData.images);
+      const uploadedVariants = await Promise.all(
+        formData.variants.map(async (v) => ({
+          ...v,
+          images: await uploadPendingImages(v.images || []),
+        })),
+      );
+
+      // Replace local state with real URLs so UI stays consistent
+      setFormData((prev) => ({
+        ...prev,
+        images: uploadedCommon,
+        variants: uploadedVariants,
+      }));
+
+      toast.loading(
+        isEditMode ? "Updating product..." : "Publishing product...",
+        { id: toastId },
+      );
+
       let payload = {
         name: formData.title,
         brand: formData.brand,
@@ -1139,9 +1564,16 @@ function AddProductContent() {
         specifications: formData.specifications,
       };
 
+      const sortMain = (imgs) =>
+        [...imgs].sort((a, b) => (b.isMain ? 1 : 0) - (a.isMain ? 1 : 0));
+      // Strip internal fields before sending
+      const toApiImgs = (imgs) =>
+        sortMain(imgs).map(({ url, isMain }) => ({ url, isMain }));
+
       if (formData.condition === "New") {
         payload.variantAttributes = formData.options;
-        payload.variants = formData.variants.map((v) => ({
+        payload.images = toApiImgs(uploadedCommon);
+        payload.variants = uploadedVariants.map((v) => ({
           title: `${formData.title} - ${Object.values(v.attributes).join(" ")}`,
           attributes: v.attributes,
           sellingPrice: Number(v.sellingPrice),
@@ -1152,28 +1584,28 @@ function AddProductContent() {
             `${formData.brand}-${Object.values(v.attributes).join("-")}-${Date.now()}`.toUpperCase(),
           inventoryType: "Quantity",
           condition: "New",
-          images: formData.images.map((url) => ({ url })),
+          images:
+            v.images && v.images.length > 0
+              ? toApiImgs(v.images)
+              : toApiImgs(uploadedCommon),
           isDefault: false,
         }));
         if (payload.variants.length > 0) payload.variants[0].isDefault = true;
       } else {
-        // Used / Unique Payload
-        // Create one variant that serves as the container for this unique item
         payload.variantAttributes = [{ name: "Type", values: ["Single Unit"] }];
+        payload.images = toApiImgs(uploadedCommon);
         payload.variants = [
           {
             title: `${formData.title} - ${formData.conditionGrade}`,
-            attributes: { Type: "Single Unit" }, // Dummy attribute
+            attributes: { Type: "Single Unit" },
             sellingPrice: Number(formData.sellingPrice),
             actualPrice: Number(formData.actualPrice),
-            stock: 1, // Always 1 for unique items initially
+            stock: 1,
             sku: formData.sku || `ITEM-${Date.now()}`,
             inventoryType: "Unique",
-            condition: formData.condition, // "Refurbished" etc
-            images: formData.images.map((url) => ({ url })),
+            condition: formData.condition,
+            images: toApiImgs(uploadedCommon),
             isDefault: true,
-
-            // Extra fields for InventoryUnit creation
             imei: formData.imei,
             serialNumber: formData.serialNumber,
             conditionGrade: formData.conditionGrade,
@@ -1215,7 +1647,9 @@ function AddProductContent() {
   // Validation for Step 2
   const canProceedToStep3 = () => {
     if (formData.condition === "New") {
-      return formData.variants.length > 0;
+      // Variants are optional — user can proceed without them if no options were added
+      // If options were added, they must have generated at least one variant
+      return formData.options.length === 0 || formData.variants.length > 0;
     } else {
       // For Used/Refurbished, check required single item fields
       return (
@@ -1228,7 +1662,7 @@ function AddProductContent() {
 
   return (
     <AdminLayout>
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
@@ -1259,11 +1693,12 @@ function AddProductContent() {
           {currentStep === 1 && renderStep1()}
           {currentStep === 2 && renderStep2()}
           {currentStep === 3 && renderStep3()}
+          {currentStep === 4 && renderStep4()}
         </div>
 
         {/* Floating Footer Navigation */}
         <div className="fixed bottom-0 left-0 right-0 md:left-64 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 p-4 z-50">
-          <div className="max-w-6xl mx-auto flex justify-between items-center">
+          <div className="max-w-3xl mx-auto flex justify-between items-center">
             <Button
               variant="secondary"
               onClick={() => setCurrentStep((curr) => Math.max(1, curr - 1))}
@@ -1284,7 +1719,7 @@ function AddProductContent() {
               <Button
                 variant="primary"
                 onClick={() => {
-                  if (currentStep === 3) {
+                  if (currentStep === 4) {
                     handleSubmit();
                   } else {
                     setCurrentStep((curr) => curr + 1);
@@ -1301,7 +1736,7 @@ function AddProductContent() {
                     <Spinner size="sm" className="text-white" />
                     <span>Publishing...</span>
                   </div>
-                ) : currentStep === 3 ? (
+                ) : currentStep === 4 ? (
                   "Publish Product"
                 ) : (
                   "Continue"
@@ -1311,6 +1746,18 @@ function AddProductContent() {
           </div>
         </div>
       </div>
+
+      {/* Image Crop Modal */}
+      {cropModal && (
+        <ImageCropModal
+          src={cropModal.src}
+          onConfirm={cropModal.onConfirm}
+          onClose={() => {
+            URL.revokeObjectURL(cropModal.src);
+            setCropModal(null);
+          }}
+        />
+      )}
     </AdminLayout>
   );
 }
