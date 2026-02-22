@@ -5,7 +5,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { message } from "antd";
+import toast from "react-hot-toast";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -21,13 +21,13 @@ export default function LoginPage() {
     try {
       const result = await login(email, password);
       if (result.success) {
-        message.success("Logged in successfully!");
+        toast.success("Logged in successfully!");
         router.push("/");
       } else {
-        message.error(result.error || "Invalid credentials");
+        toast.error(result.error || "Invalid credentials");
       }
     } catch (error) {
-      message.error("An unexpected error occurred");
+      toast.error("An unexpected error occurred");
     } finally {
       setIsLoading(false);
     }
