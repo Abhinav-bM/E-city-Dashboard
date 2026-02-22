@@ -144,8 +144,15 @@ const Sidebar = () => {
         <SidebarItem
           icon="shopping_cart"
           label="Orders"
-          href="/sales"
-          active={pathname.includes("/sales")}
+          href="/orders"
+          active={pathname.includes("/orders")}
+          collapsed={collapsed}
+        />
+        <SidebarItem
+          icon="assignment_return"
+          label="Returns"
+          href="/returns"
+          active={pathname.includes("/returns")}
           collapsed={collapsed}
         />
         <SidebarItem

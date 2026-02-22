@@ -1,15 +1,26 @@
 "use client";
 import React, { useState } from "react";
-import { Steps, Button, message, theme, Card } from "antd";
+import { Steps, Button, message, theme } from "antd";
 import BasicInfoStep from "./steps/BasicInfoStep";
 import AttributeStep from "./steps/AttributeStep";
 import ReviewStep from "./steps/ReviewStep";
-import { addProduct } from "../../../api/product";
+import { useSearchParams, useRouter } from "next/navigation";
+import {
+  addProduct,
+  updateProduct,
+  getProductByBaseId,
+} from "../../../api/product";
+import uploadService from "@/services/uploadService";
 
 const AddProductPage = () => {
-  const { token } = theme.useToken();
+  const {} = theme.useToken();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
   const [current, setCurrent] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [productId, setProductId] = useState(null);
 
   // Central State for Product Creation
   const [productData, setProductData] = useState({
@@ -24,12 +35,58 @@ const AddProductPage = () => {
     variants: [],
   });
 
+  // Check for Edit Mode
+  React.useEffect(() => {
+    const edit = searchParams.get("edit");
+    const id = searchParams.get("id");
+    if (edit === "true" && id) {
+      setIsEditMode(true);
+      setProductId(id);
+      fetchProductData(id);
+    }
+  }, [searchParams]);
+
+  const fetchProductData = async (id) => {
+    try {
+      setLoading(true);
+      const data = await getProductByBaseId(id);
+      if (data) {
+        // Map backend data to frontend state
+        setProductData({
+          name: data.baseProduct.title,
+          brand: data.baseProduct.brand,
+          category:
+            typeof data.baseProduct.category === "object"
+              ? data.baseProduct.category._id
+              : data.baseProduct.category,
+          description: data.baseProduct.description,
+          images: data.baseProduct.images || [],
+          fileList: [],
+          tempImageUrl: "",
+          variantAttributes: data.baseProduct.variantAttributes || [],
+          variants:
+            data.availableVariants.map((v) => ({
+              ...v,
+              key: v._id || Date.now() + Math.random(), // Ensure key exists
+              // Ensure attributes are flat object
+              attributes: v.attributes,
+            })) || [],
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch product:", error);
+      message.error("Failed to load product details.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Boring Steps
   const next = () => {
     // Basic Validation Check (Boring/Predictable)
     if (current === 0) {
-      if (!productData.name || !productData.brand || !productData.category) {
-        message.error("Please fill in all required fields.");
+      if (!productData && !productData.name) {
+        // Safety check
         return;
       }
     }
@@ -49,26 +106,39 @@ const AddProductPage = () => {
   // The Final Submit Action
   const handleSubmit = async () => {
     setLoading(true);
-    message.loading({ content: "Creating product...", key: "create" });
+    const actionText = isEditMode ? "Updating" : "Creating";
+    message.loading({ content: `${actionText} product...`, key: "create" });
 
     // PREPARE DATA FOR BACKEND
     // 1. Handle Images: If we have fileList, we mock upload by converting to base64 or just using name for now.
     // If we have tempImageUrl, we use that.
-    let finalImages = [];
+    let finalImages = [...productData.images]; // Start with existing images
 
     if (productData.tempImageUrl) {
       finalImages.push({ url: productData.tempImageUrl });
     }
 
-    // Process fileList (Mocking upload here since no backend endpoint provided yet)
-    // In production, you'd upload these files first -> get URLs -> save to product.
-    // Here we will skip file binary upload to avoid breaking without backend support,
-    // but we acknowledge them so the flow feels real.
+    // Process fileList (Real Upload)
     if (productData.fileList && productData.fileList.length > 0) {
-      // Mock: just adding a placeholder or the actual base64 if needed
-      // For this demo, let's assume we proceed with the URL if provided or a placeholder
-      if (finalImages.length === 0) {
-        finalImages.push({ url: "https://via.placeholder.com/300" }); // Fallback
+      try {
+        const uploadPromises = productData.fileList.map((file) => {
+          const formData = new FormData();
+          formData.append("image", file.originFileObj);
+          return uploadService.uploadImage(formData);
+        });
+
+        const responses = await Promise.all(uploadPromises);
+
+        responses.forEach((res) => {
+          if (res && res.url) {
+            finalImages.push({ url: res.url });
+          }
+        });
+      } catch (error) {
+        console.error("Image upload failed:", error);
+        message.error("Failed to upload images. Please try again.");
+        setLoading(false);
+        return;
       }
     }
 
@@ -90,32 +160,26 @@ const AddProductPage = () => {
     try {
       // Send the payload
       console.log("Sending Payload:", payload);
-      const response = await addProduct(payload);
+      let response;
+
+      if (isEditMode && productId) {
+        response = await updateProduct(productId, payload);
+      } else {
+        response = await addProduct(payload);
+      }
 
       if (response && response.success) {
         message.success({
-          content: "Product created successfully!",
+          content: `Product ${isEditMode ? "updated" : "created"} successfully!`,
           key: "create",
         });
         // Reset form or Redirect
         setTimeout(() => {
-          // router.push('/products/all'); // "Boring" redirect
-          setCurrent(0);
-          setProductData({
-            name: "",
-            brand: "",
-            category: "",
-            description: "",
-            images: [],
-            fileList: [],
-            tempImageUrl: "",
-            variantAttributes: [],
-            variants: [],
-          });
+          router.push("/products");
         }, 1000);
       } else {
         message.error({
-          content: "Failed to create product. Check console.",
+          content: `Failed to ${isEditMode ? "update" : "create"} product. Check console.`,
           key: "create",
         });
       }
