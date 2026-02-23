@@ -156,13 +156,6 @@ const Sidebar = () => {
           collapsed={collapsed}
         />
         <SidebarItem
-          icon="campaign"
-          label="Marketing"
-          href="/marketing"
-          active={pathname.includes("/marketing")}
-          collapsed={collapsed}
-        />
-        <SidebarItem
           icon="group"
           label="Customers"
           href="/users"
@@ -175,30 +168,16 @@ const Sidebar = () => {
             <div className="h-px w-8 bg-slate-200 dark:bg-border-dark mx-auto my-2"></div>
           ) : (
             <p className="px-3 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider animate-in fade-in duration-300">
-              System
+              Storefront
             </p>
           )}
         </div>
 
         <SidebarItem
-          icon="home" // Using a Material Symbols icon name for consistency
+          icon="web"
           label="Home Page"
           href="/home-content"
           active={pathname.includes("/home-content")}
-          collapsed={collapsed}
-        />
-        <SidebarItem
-          icon="settings"
-          label="Settings"
-          href="/settings"
-          active={pathname.includes("/settings")}
-          collapsed={collapsed}
-        />
-        <SidebarItem
-          icon="help"
-          label="Help Center"
-          href="/help"
-          active={pathname.includes("/help")}
           collapsed={collapsed}
         />
       </nav>
