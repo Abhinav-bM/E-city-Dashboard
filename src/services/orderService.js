@@ -8,8 +8,8 @@ const orderService = {
   getById: async (id) => {
     return await http.get(`/order/${id}`);
   },
-  updateStatus: async (id, status) => {
-    return await http.patch(`/order/${id}/status`, { status });
+  updateStatus: async (id, status, extraData = {}) => {
+    return await http.patch(`/order/${id}/status`, { status, ...extraData });
   },
   downloadInvoice: async (id) => {
     return await http.get(`/order/${id}/invoice`, { responseType: "blob" });
