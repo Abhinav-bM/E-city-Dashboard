@@ -51,6 +51,9 @@ const OrderDetailModal = ({ orderId, onClose, onStatusUpdate }) => {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [showShippingForm, setShowShippingForm] = useState(false);
+  const [trackingId, setTrackingId] = useState("");
+  const [shippedImeisText, setShippedImeisText] = useState("");
 
   const fetchOrder = useCallback(async () => {
     setLoading(true);
@@ -77,13 +80,48 @@ const OrderDetailModal = ({ orderId, onClose, onStatusUpdate }) => {
   }, [onClose]);
 
   const handleStatusUpdate = async (newStatus) => {
+    if (newStatus === "Shipped" && !showShippingForm) {
+      setShowShippingForm(true);
+      return;
+    }
+
+    if (newStatus === "Shipped" && !trackingId.trim()) {
+      toast.error("Tracking ID is required.");
+      return;
+    }
+
+    // --- IMEI Validation ---
+    const requiredImeiCount = order?.items?.filter((item) => item.inventoryUnitId)?.length || 0;
+    
+    let parsedImeis = [];
+    if (newStatus === "Shipped") {
+      parsedImeis = shippedImeisText
+        .split(",")
+        .map((i) => i.trim())
+        .filter(Boolean);
+
+      if (requiredImeiCount > 0 && parsedImeis.length !== requiredImeiCount) {
+        toast.error(`Please enter exactly ${requiredImeiCount} IMEI(s)/Serial(s) for the unique items.`);
+        return;
+      }
+    }
+
     setUpdating(true);
     const toastId = toast.loading(`Updating status to ${newStatus}...`);
     try {
-      await orderService.updateStatus(order._id, newStatus);
+      const extraData =
+        newStatus === "Shipped"
+          ? {
+              trackingId: trackingId.trim(),
+              shippedImeis: parsedImeis,
+            }
+          : {};
+
+      await orderService.updateStatus(order._id, newStatus, extraData);
       toast.success(`Order marked as ${newStatus}`, { id: toastId });
       setOrder((prev) => ({ ...prev, orderStatus: newStatus }));
       setConfirmCancel(false);
+      setShowShippingForm(false);
       onStatusUpdate?.();
     } catch (err) {
       toast.error(err.response?.data?.message || "Update failed", {
@@ -266,6 +304,17 @@ const OrderDetailModal = ({ orderId, onClose, onStatusUpdate }) => {
                     : ""}
                 </span>
               </div>
+
+              {order.trackingId && (
+                <div className="mt-4 bg-slate-50 dark:bg-slate-800 rounded-lg p-3 border border-slate-100 dark:border-border-dark">
+                  <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">
+                    Tracking ID
+                  </p>
+                  <p className="text-sm font-mono text-slate-900 dark:text-white font-medium">
+                    {order.trackingId}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -390,22 +439,60 @@ const OrderDetailModal = ({ orderId, onClose, onStatusUpdate }) => {
               </div>
             ) : (
               <>
-                <button
-                  onClick={() => setConfirmCancel(true)}
-                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-rose-600 border border-rose-200 hover:bg-rose-50 rounded-xl transition-all"
-                >
-                  <XCircle size={14} /> Cancel Order
-                </button>
-
-                {nextStatus && (
+                {!showShippingForm && (
                   <button
-                    onClick={() => handleStatusUpdate(nextStatus)}
-                    disabled={updating}
-                    className="flex-1 flex items-center justify-center gap-2 py-2 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-all disabled:opacity-70"
+                    onClick={() => setConfirmCancel(true)}
+                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-rose-600 border border-rose-200 hover:bg-rose-50 rounded-xl transition-all"
                   >
-                    Mark as {nextStatus}
+                    <XCircle size={14} /> Cancel Order
                   </button>
                 )}
+
+                {nextStatus &&
+                  (showShippingForm && nextStatus === "Shipped" ? (
+                    <div className="flex-1 space-y-3 bg-white dark:bg-surface-dark p-4 rounded-xl border border-slate-200 dark:border-border-dark shadow-lg relative ml-2">
+                      <button
+                        onClick={() => setShowShippingForm(false)}
+                        className="absolute top-2 right-2 text-slate-400 hover:text-slate-700"
+                      >
+                        <X size={14} />
+                      </button>
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                        Fulfillment Details
+                      </h4>
+                      <input
+                        placeholder="Tracking ID (required)"
+                        value={trackingId}
+                        onChange={(e) => setTrackingId(e.target.value)}
+                        className="w-full text-sm p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-border-dark dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-primary/20"
+                      />
+                      <textarea
+                        placeholder={`IMEIs / Serials (comma separated${
+                          (order?.items?.filter((item) => item.inventoryUnitId)?.length || 0) > 0 
+                            ? `, exact ${order?.items?.filter((item) => item.inventoryUnitId)?.length} required` 
+                            : ''
+                        })`}
+                        value={shippedImeisText}
+                        onChange={(e) => setShippedImeisText(e.target.value)}
+                        className="w-full text-sm p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-border-dark dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-primary/20 h-16 resize-none"
+                      />
+                      <button
+                        onClick={() => handleStatusUpdate("Shipped")}
+                        disabled={updating}
+                        className="w-full py-2 bg-slate-900 text-white text-xs font-bold rounded-lg hover:bg-slate-800 transition-all disabled:opacity-70"
+                      >
+                        {updating ? "Saving..." : "Confirm Shipment"}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleStatusUpdate(nextStatus)}
+                      disabled={updating}
+                      className="flex-1 flex items-center justify-center gap-2 py-2 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-all disabled:opacity-70"
+                    >
+                      Mark as {nextStatus}
+                    </button>
+                  ))}
               </>
             )}
           </div>
