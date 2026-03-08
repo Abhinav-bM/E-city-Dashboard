@@ -5,32 +5,14 @@ const http = axios.create({
   baseURL: "/api",
   timeout: 10000,
   withCredentials: true,
-  xsrfCookieName: "XSRF-TOKEN",
-  xsrfHeaderName: "X-XSRF-TOKEN",
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-// Helper to get cookie by name
-const getCookie = (name) => {
-  if (typeof document === "undefined") return null;
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop().split(";").shift();
-  return null;
-};
-
 // Request Interceptor
 http.interceptors.request.use(
   (config) => {
-    // Manually handle CSRF token for cross-origin requests
-    const csrfToken = getCookie("XSRF-TOKEN");
-    if (csrfToken && config.method !== "get") {
-      config.headers["X-XSRF-TOKEN"] = csrfToken;
-    }
-
-    // Cookies are handled automatically by the browser with withCredentials: true.
     return config;
   },
   (error) => Promise.reject(error),
@@ -60,11 +42,17 @@ http.interceptors.response.use(
 
       try {
         // Attempt to refresh the token using a relative path
-        await axios.post(
+        const refreshRes = await axios.post(
           "/api/admin/auth/refresh",
           {},
           { withCredentials: true },
         );
+
+        const newCsrf =
+          refreshRes.data?.data?.xsrfToken || refreshRes.data?.xsrfToken;
+        if (newCsrf) {
+          http.defaults.headers.common["X-XSRF-TOKEN"] = newCsrf;
+        }
 
         // Retry the original request
         return http(originalRequest);

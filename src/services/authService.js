@@ -1,5 +1,13 @@
 import http from "../api/httpservice";
 
+const extractAndSetCsrf = (data) => {
+  const token = data?.data?.xsrfToken || data?.xsrfToken;
+  if (token) {
+    http.defaults.headers.common["X-XSRF-TOKEN"] = token;
+  }
+  return data;
+};
+
 const authService = {
   /**
    * Login the admin
@@ -7,7 +15,8 @@ const authService = {
    * @param {string} password
    */
   login: async (email, password) => {
-    return await http.post("/admin/auth/login", { email, password });
+    const data = await http.post("/admin/auth/login", { email, password });
+    return extractAndSetCsrf(data);
   },
 
   /**
@@ -28,14 +37,16 @@ const authService = {
    * Refresh the access token
    */
   refresh: async () => {
-    return await http.post("/admin/auth/refresh");
+    const data = await http.post("/admin/auth/refresh");
+    return extractAndSetCsrf(data);
   },
 
   /**
    * Initial CSRF setup
    */
   getCsrf: async () => {
-    return await http.get("/admin/auth/csrf");
+    const data = await http.get("/admin/auth/csrf");
+    return extractAndSetCsrf(data);
   },
 };
 
