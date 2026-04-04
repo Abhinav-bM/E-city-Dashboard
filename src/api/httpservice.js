@@ -22,10 +22,18 @@ http.interceptors.request.use(
 http.interceptors.response.use(
   (response) => {
     // If the response is a blob (like PDF download), return the data directly
-    // but DON'T extract further if it's already a Blob
     if (response.config.responseType === "blob") {
       return response.data;
     }
+
+    // Automatically extract and set CSRF token if present in any successful response
+    const xsrfToken = response.data?.data?.xsrfToken || response.data?.xsrfToken;
+    if (xsrfToken) {
+      http.defaults.headers.common["X-XSRF-TOKEN"] = xsrfToken;
+      // Also sync with raw axios for initial session/CSRF handshakes
+      axios.defaults.headers.common["X-XSRF-TOKEN"] = xsrfToken;
+    }
+
     return response.data;
   },
   async (error) => {
@@ -41,26 +49,25 @@ http.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        // Attempt to refresh the token using a relative path
-        const refreshRes = await axios.post(
+        // Attempt silent token refresh
+        // Handled automatically by success interceptor above
+        await axios.post(
           "/api/admin/auth/refresh",
           {},
           { withCredentials: true },
         );
 
-        const newCsrf =
-          refreshRes.data?.data?.xsrfToken || refreshRes.data?.xsrfToken;
-        if (newCsrf) {
-          http.defaults.headers.common["X-XSRF-TOKEN"] = newCsrf;
-        }
+        // Success! The interceptor above updated the header in http.defaults
+        // So we retry the original request with the new header
+        originalRequest.headers["X-XSRF-TOKEN"] =
+          http.defaults.headers.common["X-XSRF-TOKEN"];
 
-        // Retry the original request
         return http(originalRequest);
       } catch (refreshError) {
-        // If refresh fails, redirect to login or handle session expiration
+        // If refresh fails, redirect to login unless _noRedirect is specified
         console.error("Session expired:", refreshError);
 
-        if (typeof window !== "undefined") {
+        if (typeof window !== "undefined" && !originalRequest._noRedirect) {
           const currentPath = window.location.pathname;
           // Avoid redirect loop if already on login page
           if (!currentPath.includes("/auth/login")) {
@@ -68,18 +75,6 @@ http.interceptors.response.use(
           }
         }
         return Promise.reject(refreshError);
-      }
-    }
-
-    // Still reject other 401s (e.g. from login itself) but don't loop
-    if (error.response?.status === 401 && typeof window !== "undefined") {
-      const currentPath = window.location.pathname;
-      if (
-        !currentPath.includes("/auth/login") &&
-        !originalRequest.url.includes("/admin/auth/login")
-      ) {
-        // Only redirect if not already on login and not a login request
-        // window.location.href = "/auth/login";
       }
     }
 

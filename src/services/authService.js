@@ -1,52 +1,41 @@
 import http from "../api/httpservice";
 
-const extractAndSetCsrf = (data) => {
-  const token = data?.data?.xsrfToken || data?.xsrfToken;
-  if (token) {
-    http.defaults.headers.common["X-XSRF-TOKEN"] = token;
-  }
-  return data;
-};
-
 const authService = {
   /**
    * Login the admin
    * @param {string} email
    * @param {string} password
    */
-  login: async (email, password) => {
-    const data = await http.post("/admin/auth/login", { email, password });
-    return extractAndSetCsrf(data);
+  login: async (email, password, options = {}) => {
+    return await http.post("/admin/auth/login", { email, password }, options);
   },
 
   /**
    * Logout the admin
    */
-  logout: async () => {
-    return await http.post("/admin/auth/logout");
+  logout: async (options = {}) => {
+    return await http.post("/admin/auth/logout", {}, options);
   },
 
   /**
    * Get current admin profile
    */
-  getMe: async () => {
-    return await http.get("/admin/auth/me");
+  getMe: async (options = {}) => {
+    return await http.get("/admin/auth/me", options);
   },
 
   /**
    * Refresh the access token
    */
-  refresh: async () => {
-    const data = await http.post("/admin/auth/refresh");
-    return extractAndSetCsrf(data);
+  refresh: async (options = {}) => {
+    return await http.post("/admin/auth/refresh", {}, options);
   },
 
   /**
    * Initial CSRF setup
    */
-  getCsrf: async () => {
-    const data = await http.get("/admin/auth/csrf");
-    return extractAndSetCsrf(data);
+  getCsrf: async (options = {}) => {
+    return await http.get("/admin/auth/csrf", options);
   },
 };
 

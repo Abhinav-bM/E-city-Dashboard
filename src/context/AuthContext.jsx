@@ -17,9 +17,9 @@ export const AuthProvider = ({ children }) => {
   const router = useRouter();
   const pathname = usePathname();
 
-  const fetchMe = useCallback(async () => {
+  const fetchMe = useCallback(async (options = {}) => {
     try {
-      const data = await authService.getMe();
+      const data = await authService.getMe(options);
       setAdmin(data);
     } catch (error) {
       console.error("Failed to fetch admin:", error);
@@ -32,15 +32,17 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     // Initial CSRF setup and session check
     const initAuth = async () => {
-      // Don't run session check on the login page itself
-      if (pathname.includes("/auth/login")) {
-        setIsLoading(false);
-        return;
-      }
-
       try {
+        // Step 0: Ensure we have a CSRF token (Interceptor handles header)
+        // This is REQUIRED even on the login page for the login POST to work.
         await authService.getCsrf();
-        await fetchMe();
+
+        // Step 1: Only fetch profile if NOT on the login page
+        if (!pathname.includes("/auth/login")) {
+          await fetchMe({ _noRedirect: true });
+        } else {
+          setIsLoading(false);
+        }
       } catch (error) {
         console.error("Auth initialization failed:", error);
         setIsLoading(false);
@@ -52,12 +54,9 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     setIsLoading(true);
     try {
-      // Step 1: Ensure we have a CSRF token
-      await authService.getCsrf();
-      // Step 2: Login
+      // Login (Interceptor automatically captures new CSRF token from response)
       const data = await authService.login(email, password);
-      // Step 3: Fetch full profile
-      setAdmin(data.admin || data); // Store admin data
+      setAdmin(data.admin || data);
       router.push("/");
       return { success: true };
     } catch (error) {
