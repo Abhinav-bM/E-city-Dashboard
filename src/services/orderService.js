@@ -6,13 +6,13 @@ const orderService = {
     return await http.get("/order", { params });
   },
   getById: async (id) => {
-    return await http.get(`/order/${id}`);
+    return await http.get(`/order/admin/${id}`);
   },
   updateStatus: async (id, status, extraData = {}) => {
     return await http.patch(`/order/${id}/status`, { status, ...extraData });
   },
   downloadInvoice: async (id) => {
-    return await http.get(`/order/${id}/invoice`, { responseType: "blob" });
+    return await http.get(`/order/admin/${id}/invoice`, { responseType: "blob" });
   },
 };
 
