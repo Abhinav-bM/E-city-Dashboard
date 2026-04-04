@@ -81,6 +81,19 @@ const OrdersPage = () => {
     }
   };
 
+  const getPaymentStatusColor = (status) => {
+    switch (status) {
+      case "Paid":
+        return "bg-emerald-50 text-emerald-700 border-emerald-100";
+      case "Pending":
+        return "bg-amber-50 text-amber-700 border-amber-100";
+      case "Failed":
+        return "bg-rose-50 text-rose-700 border-rose-100";
+      default:
+        return "bg-slate-50 text-slate-700 border-slate-100";
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -153,6 +166,9 @@ const OrdersPage = () => {
                   <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">
                     Status
                   </th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    Payment
+                  </th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">
                     Total
                   </th>
@@ -221,6 +237,30 @@ const OrdersPage = () => {
                         >
                           {order.orderStatus}
                         </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col gap-1">
+                          <span
+                            className={`w-fit px-2 py-0.5 rounded-lg text-[10px] font-bold border ${
+                              order.paymentMethod === "Razorpay"
+                                ? "bg-indigo-50 text-indigo-700 border-indigo-100"
+                                : "bg-slate-50 text-slate-700 border-slate-100"
+                            }`}
+                          >
+                            {order.paymentMethod === "Razorpay"
+                              ? "ONLINE"
+                              : "COD"}
+                          </span>
+                          <span
+                            className={`text-[10px] font-bold px-1 ${
+                              order.paymentStatus === "Paid"
+                                ? "text-emerald-600"
+                                : "text-amber-600"
+                            }`}
+                          >
+                            • {order.paymentStatus}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <span className="text-sm font-bold text-slate-900 dark:text-white font-outfit">
