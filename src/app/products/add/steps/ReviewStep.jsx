@@ -68,8 +68,8 @@ const ReviewStep = ({ data, updateData, submit }) => {
       formData.append("image", file);
       const res = await uploadService.uploadImage(formData);
 
-      if (res && res.url) {
-        const url = res.url;
+      const url = res?.data?.url || res?.url;
+      if (url) {
         const newVariants = [...data.variants];
         const index = newVariants.findIndex((item) => item.key === record.key);
         if (index > -1) {
@@ -258,8 +258,9 @@ const ReviewStep = ({ data, updateData, submit }) => {
                   formData.append("image", file);
                   const res = await uploadService.uploadImage(formData);
 
-                  if (res && res.url) {
-                    onSuccess({ url: res.url }, file);
+                  const url = res?.data?.url || res?.url;
+                  if (url) {
+                    onSuccess({ url }, file);
                   } else {
                     throw new Error("Upload failed");
                   }

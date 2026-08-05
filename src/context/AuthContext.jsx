@@ -71,11 +71,11 @@ export const AuthProvider = ({ children }) => {
     setIsLoading(true);
     try {
       await authService.logout();
-      setAdmin(null);
-      router.push("/auth/login");
     } catch (error) {
       console.error("Logout failed:", error);
     } finally {
+      setAdmin(null);
+      router.push("/auth/login");
       setIsLoading(false);
     }
   };

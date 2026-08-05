@@ -131,8 +131,9 @@ const AddProductContent = () => {
         const responses = await Promise.all(uploadPromises);
 
         responses.forEach((res) => {
-          if (res && res.url) {
-            finalImages.push({ url: res.url });
+          const url = res?.data?.url || res?.url;
+          if (url) {
+            finalImages.push({ url });
           }
         });
       } catch (error) {

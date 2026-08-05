@@ -84,7 +84,6 @@ const page = () => {
 
   return (
     <section>
-      <title>Ecity-Products</title>
       <Title level={3}>Products</Title>
       <Table
         dataSource={products}

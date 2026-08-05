@@ -16,6 +16,7 @@ import {
 } from "antd";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import uploadService from "@/services/uploadService";
 const { TextArea } = Input;
 
 // Image Selector Component for Variants
@@ -118,27 +119,21 @@ const AddProductForm = () => {
   // Watch for changes in variantAttributes to dynamically generate selection fields in variants
   const variantAttributes = Form.useWatch("variantAttributes", form) || [];
 
-  // Reusable function for uploading to cloudinary
+  // Reusable function for uploading image via backend upload service
   const uploadToCloudinary = async ({ file }) => {
-    const cloudName = "drsbpinni";
-    const uploadPreset = "product-images";
-    const url = `https://api.cloudinary.com/v1_1/${cloudName}/upload`;
-
     const formData = new FormData();
-
-    formData.append("file", file);
-    formData.append("upload_preset", uploadPreset);
+    formData.append("image", file);
 
     try {
       setUploading(true);
-      const res = await fetch(url, { method: "POST", body: formData });
-      const data = await res.json();
+      const res = await uploadService.uploadImage(formData);
+      const url = res?.data?.url || res?.url;
 
-      if (data.secure_url) {
+      if (url) {
         console.log("Image upload successful");
-        return { url: data.secure_url };
+        return { url };
       } else {
-        throw new Error("Upload failed");
+        throw new Error(res?.message || "Upload failed");
       }
     } catch (err) {
       console.error("Upload Error :", err);

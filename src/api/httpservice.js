@@ -2,7 +2,7 @@ import axios from "axios";
 
 // Create Axios instance
 const http = axios.create({
-  baseURL: "/api",
+  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000/api",
   timeout: 10000,
   withCredentials: true,
   headers: {
@@ -10,9 +10,30 @@ const http = axios.create({
   },
 });
 
+
+function getCookie(name) {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+  return match ? match[2] : null;
+}
+
 // Request Interceptor
 http.interceptors.request.use(
   (config) => {
+    if (typeof window !== "undefined") {
+      const xsrfCookie = getCookie("XSRF-TOKEN");
+      const xsrfMemory =
+        http.defaults.headers.common["X-XSRF-TOKEN"] ||
+        axios.defaults.headers.common["X-XSRF-TOKEN"];
+      const token = xsrfCookie || xsrfMemory;
+      if (token) {
+        config.headers["X-XSRF-TOKEN"] = token;
+      }
+    }
+    // Delete application/json header for FormData so browser generates boundary automatically
+    if (config.data instanceof FormData) {
+      delete config.headers["Content-Type"];
+    }
     return config;
   },
   (error) => Promise.reject(error),

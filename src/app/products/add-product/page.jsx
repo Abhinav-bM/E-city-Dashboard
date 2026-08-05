@@ -71,6 +71,7 @@ function AddProductContent() {
     sellingPrice: "",
     actualPrice: "",
     sku: "",
+    warranty: "", // e.g. "6 Month Store Warranty"
   });
 
   // Metadata
@@ -694,6 +695,59 @@ function AddProductContent() {
               onChange={(e) => updateField("description", e.target.value)}
             />
           </div>
+
+          {/* isFeatured / isNewArrival toggles */}
+          <div className="flex flex-col sm:flex-row gap-3 pt-1">
+            <label
+              className={`flex items-center gap-3 flex-1 cursor-pointer p-3 rounded-xl border-2 transition-all ${
+                formData.isFeatured
+                  ? "border-primary bg-primary/5"
+                  : "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+              }`}
+            >
+              <div
+                onClick={() => updateField("isFeatured", !formData.isFeatured)}
+                className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${
+                  formData.isFeatured ? "bg-primary" : "bg-slate-300 dark:bg-slate-600"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                    formData.isFeatured ? "translate-x-4" : "translate-x-0"
+                  }`}
+                />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">Featured Product</p>
+                <p className="text-xs text-slate-500">Show in Featured section on homepage</p>
+              </div>
+            </label>
+
+            <label
+              className={`flex items-center gap-3 flex-1 cursor-pointer p-3 rounded-xl border-2 transition-all ${
+                formData.isNewArrival
+                  ? "border-emerald-500 bg-emerald-500/5"
+                  : "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+              }`}
+            >
+              <div
+                onClick={() => updateField("isNewArrival", !formData.isNewArrival)}
+                className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${
+                  formData.isNewArrival ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-600"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                    formData.isNewArrival ? "translate-x-4" : "translate-x-0"
+                  }`}
+                />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">New Arrival</p>
+                <p className="text-xs text-slate-500">Show in New Arrivals section</p>
+              </div>
+            </label>
+          </div>
         </div>
       </Card>
 
@@ -889,10 +943,11 @@ function AddProductContent() {
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 text-slate-500">
                     <th className="p-3 font-medium">Variant</th>
-                    <th className="p-3 font-medium w-32">Price ($)</th>
-                    <th className="p-3 font-medium w-32">MRP ($)</th>
+                    <th className="p-3 font-medium w-32">Price (₹)</th>
+                    <th className="p-3 font-medium w-32">MRP (₹)</th>
                     <th className="p-3 font-medium w-24">Stock</th>
-                    <th className="p-3 font-medium w-48">SKU</th>
+                    <th className="p-3 font-medium w-40">SKU</th>
+                    <th className="p-3 font-medium w-44">Warranty</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -950,6 +1005,17 @@ function AddProductContent() {
                           placeholder="Auto-gen if empty"
                           onChange={(e) =>
                             updateVariant(i, "sku", e.target.value)
+                          }
+                        />
+                      </td>
+                      <td className="p-3">
+                        <input
+                          type="text"
+                          className="w-full bg-transparent border border-slate-300 dark:border-slate-700 rounded px-2 py-1 focus:border-primary outline-none text-xs"
+                          value={v.warranty || ""}
+                          placeholder="e.g. 6 Month"
+                          onChange={(e) =>
+                            updateVariant(i, "warranty", e.target.value)
                           }
                         />
                       </td>
@@ -1026,7 +1092,7 @@ function AddProductContent() {
               placeholder="0.00"
               value={formData.sellingPrice}
               onChange={(e) => updateField("sellingPrice", e.target.value)}
-              icon="$"
+              icon="₹"
             />
 
             <Input
@@ -1035,7 +1101,14 @@ function AddProductContent() {
               placeholder="0.00"
               value={formData.actualPrice}
               onChange={(e) => updateField("actualPrice", e.target.value)}
-              icon="$"
+              icon="₹"
+            />
+
+            <Input
+              label="Warranty"
+              placeholder="e.g. 6 Month Store Warranty"
+              value={formData.warranty}
+              onChange={(e) => updateField("warranty", e.target.value)}
             />
           </div>
         </Card>
@@ -1431,7 +1504,7 @@ function AddProductContent() {
                             <span className="text-slate-400 text-xs">-</span>
                           )}
                         </td>
-                        <td className="p-3">${v.sellingPrice}</td>
+                        <td className="p-3">₹{v.sellingPrice}</td>
                         <td className="p-3">{v.stock || 0}</td>
                         <td className="p-3 font-mono text-xs">
                           {v.sku || "Auto-gen"}
@@ -1578,12 +1651,14 @@ function AddProductContent() {
           attributes: v.attributes,
           sellingPrice: Number(v.sellingPrice),
           actualPrice: Number(v.actualPrice),
+          compareAtPrice: Number(v.actualPrice), // MRP for discount calculation
           stock: Number(v.stock),
           sku:
             v.sku ||
             `${formData.brand}-${Object.values(v.attributes).join("-")}-${Date.now()}`.toUpperCase(),
           inventoryType: "Quantity",
           condition: "New",
+          warranty: v.warranty || "",
           images:
             v.images && v.images.length > 0
               ? toApiImgs(v.images)
@@ -1600,10 +1675,12 @@ function AddProductContent() {
             attributes: { Type: "Single Unit" },
             sellingPrice: Number(formData.sellingPrice),
             actualPrice: Number(formData.actualPrice),
+            compareAtPrice: Number(formData.actualPrice), // MRP for discount calculation
             stock: 1,
             sku: formData.sku || `ITEM-${Date.now()}`,
             inventoryType: "Unique",
             condition: formData.condition,
+            warranty: formData.warranty || "",
             images: toApiImgs(uploadedCommon),
             isDefault: true,
             imei: formData.imei,
